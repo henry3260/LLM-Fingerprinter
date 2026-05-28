@@ -144,6 +144,11 @@ GEMINI_DEFAULT_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta"
 GEMINI_TIMEOUT = 60
 GEMINI_MAX_RETRIES = 3
 
+# Grok client settings
+GROK_DEFAULT_ENDPOINT = "https://api.x.ai/v1"
+GROK_TIMEOUT = 60
+GROK_MAX_RETRIES = 3
+
 # API Backend options: 'ollama', 'ollama-cloud', 'openai', 'deepseek', 'gemini', 'custom'
 DEFAULT_BACKEND = "custom"
 
@@ -156,4 +161,5 @@ API_KEY_ENV_VARS = {
     "openai": "OPENAI_API_KEY",
     "deepseek": "DEEPSEEK_API_KEY",
     "gemini": "GEMINI_API_KEY",
+    "grok": "GROK_API_KEY",
 }

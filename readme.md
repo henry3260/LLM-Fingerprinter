@@ -43,6 +43,8 @@ Fingerprinting runs in three sequential layers:
 | `ollama-cloud` | Ollama Cloud API | ✅ `OLLAMA_CLOUD_API_KEY` |
 | `openai` | OpenAI API (or compatible) | ✅ `OPENAI_API_KEY` |
 | `gemini` | Gemini API | ✅ `GEMINI_API_KEY` |
+| `deepseek` | DeepSeek API | ✅ `DEEPSEEK_API_KEY` |
+| `grok` | xAI Grok API | ✅ `GROK_API_KEY` |
 | `custom` | **Any HTTP-based LLM API** | ✅ Optional |
 
 ### About the Custom Backend
@@ -86,6 +88,10 @@ llm-fingerprinter identify -b ollama --model llama3.2
 # OpenAI
 export OPENAI_API_KEY="your-key"
 llm-fingerprinter identify -b openai --model gpt-4o-mini
+
+# Grok
+export GROK_API_KEY="your-key"
+llm-fingerprinter identify -b grok --model grok-3-mini
 
 # Custom endpoint
 llm-fingerprinter identify -b custom -r ./custom_request.txt
@@ -156,6 +162,7 @@ Recommended minimum: 3 simulations for a reliable mean template.
 | `OPENAI_API_KEY` | openai | OpenAI API key |
 | `GEMINI_API_KEY` | gemini | Gemini API key |
 | `DEEPSEEK_API_KEY` | deepseek | DeepSeek API key |
+| `GROK_API_KEY` | grok | xAI Grok API key |
 | `LOG_LEVEL` | all | Logging level (`DEBUG`, `INFO`, `WARNING`) |
 | `LLM_FINGERPRINTER_DATA` | all | Override data directory (fingerprints, model, logs) |
 

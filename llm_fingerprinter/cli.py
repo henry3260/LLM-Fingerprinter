@@ -21,6 +21,7 @@ from llm_fingerprinter.ollama_cloud_client import OllamaCloudClient, OllamaCloud
 from llm_fingerprinter.custom_client import CustomClient, CustomAuthError
 from llm_fingerprinter.deepseek_client import DeepSeekClient, DeepSeekAuthError
 from llm_fingerprinter.gemini_client import GeminiClient, GeminiAuthError
+from llm_fingerprinter.grok_client import GrokClient, GrokAuthError
 from llm_fingerprinter.prompt_suite import PromptSuite
 from llm_fingerprinter.feature_extractor import FeatureExtractor
 from llm_fingerprinter.classifier import EnsembleClassifier, create_classifier
@@ -55,6 +56,7 @@ def get_default_endpoint(backend):
         "openai":       config.OPENAI_DEFAULT_ENDPOINT,
         "deepseek":     config.DEEPSEEK_DEFAULT_ENDPOINT,
         "gemini":       config.GEMINI_DEFAULT_ENDPOINT,
+        "grok":         config.GROK_DEFAULT_ENDPOINT,
         "custom":       config.CUSTOM_DEFAULT_ENDPOINT,
     }.get(backend, config.CUSTOM_DEFAULT_ENDPOINT)
 
@@ -85,6 +87,11 @@ def get_api_client(backend, endpoint, api_key = None, request_file = None):
         if not api_key:
             raise click.ClickException("Gemini API key required. Set GEMINI_API_KEY or use --api-key")
         return GeminiClient(api_key=api_key, endpoint=endpoint)
+
+    elif backend == "grok":
+        if not api_key:
+            raise click.ClickException("Grok API key required. Set GROK_API_KEY or use --api-key")
+        return GrokClient(api_key=api_key, endpoint=endpoint)
     
     elif backend == "custom":
         if not request_file:
@@ -206,7 +213,7 @@ def print_report(result: dict):
 def backend_options(f):
     """Common backend options for all LLM commands."""
     f = click.option('--backend', '-b', 
-                     type=click.Choice(['ollama', 'ollama-cloud', 'openai', 'custom', 'gemini', 'deepseek']), 
+                     type=click.Choice(['ollama', 'ollama-cloud', 'openai', 'custom', 'gemini', 'deepseek', 'grok']), 
                      default=config.DEFAULT_BACKEND, help='API backend')(f)
     f = click.option('--endpoint', '-e', default=None, help='API endpoint URL')(f)
     f = click.option('--api-key', '-k', default=None, help='API key')(f)
@@ -234,6 +241,7 @@ def cli(ctx, verbose):
       openai       - OpenAI API
       deepseek     - DeepSeek API
       gemini       - Google Gemini API
+      grok         - xAI Grok API
       custom       - Any API via request template file
     
     \b

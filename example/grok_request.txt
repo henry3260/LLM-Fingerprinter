@@ -1,0 +1,13 @@
+POST https://api.x.ai/v1/chat/completions
+Authorization: Bearer {api_key}
+Content-Type: application/json
+
+{
+  "model": "grok-3-mini",
+  "messages": [
+    {"role": "system", "content": "You are a helpful assistant."},
+    {"role": "user", "content": "{prompt}"}
+  ],
+  "temperature": 0.7,
+  "max_tokens": 512
+}
