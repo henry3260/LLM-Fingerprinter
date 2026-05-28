@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+from llm_fingerprinter import config
 from llm_fingerprinter.contracts.llm import LLMResponse
 from llm_fingerprinter.providers.grok import GrokProvider
 
@@ -58,3 +59,7 @@ def test_grok_provider_generate_and_list_models():
     assert resp.usage.total_tokens == 14
     assert provider.list_models() == ["grok-1", "grok-2"]
     assert provider.health_check() is True
+
+
+def test_grok_family_is_available_for_simulation():
+    assert "grok" in config.MODEL_FAMILIES

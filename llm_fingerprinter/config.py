@@ -22,7 +22,8 @@ MODEL_FAMILIES = {
     "qwen": 1,
     "llama": 2,
     "gemini": 3,
-    "mistral": 4
+    "mistral": 4,
+    "grok": 5
 }
 
 

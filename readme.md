@@ -118,6 +118,7 @@ right panel uses the linguistic and behavioral feature blocks.
 #         Temperature is automatically varied across simulations for diversity
 llm-fingerprinter simulate -b ollama --model llama3.2 --family llama --num-sims 5
 llm-fingerprinter simulate -b openai --model gpt-4o-mini --family gpt --num-sims 5
+llm-fingerprinter simulate -b grok --model grok-3-mini --family grok --num-sims 5
 
 # Step 2: Train the ensemble classifier
 llm-fingerprinter train
