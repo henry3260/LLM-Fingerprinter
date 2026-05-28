@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Mapping
-
-from llm_fingerprinter.contracts.llm import LLMRequest, LLMResponse
+from typing import Any, Mapping
 
 
 @dataclass(frozen=True)
@@ -19,7 +17,7 @@ class ProviderCapabilities:
 
 
 class BaseProvider(ABC):
-    """Abstract provider using normalized contracts."""
+    """Abstract provider using normalized request/response objects."""
 
     name: str
     capabilities: ProviderCapabilities
@@ -29,8 +27,8 @@ class BaseProvider(ABC):
         self.capabilities = capabilities or ProviderCapabilities()
 
     @abstractmethod
-    def generate(self, request: LLMRequest) -> LLMResponse:
-        """Execute a generation call for the given request."""
+    def generate(self, request: Any) -> Any:
+        """Execute a generation call for the given request object."""
 
     @abstractmethod
     def health_check(self) -> bool:
@@ -41,12 +39,13 @@ class BaseProvider(ABC):
         """Return model ids available to this provider account."""
 
 
-def validate_request(provider_name: str, request: LLMRequest) -> None:
+def validate_request(provider_name: str, request: Any) -> None:
     """Basic validation to ensure request targets the provider instance."""
 
-    if request.provider != provider_name:
+    request_provider = getattr(request, "provider", None)
+    if request_provider != provider_name:
         raise ValueError(
-            f"Request provider '{request.provider}' does not match provider '{provider_name}'"
+            f"Request provider '{request_provider}' does not match provider '{provider_name}'"
         )
 
 
