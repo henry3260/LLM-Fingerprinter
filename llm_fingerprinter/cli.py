@@ -23,11 +23,11 @@ from llm_fingerprinter.deepseek_client import DeepSeekClient, DeepSeekAuthError
 from llm_fingerprinter.gemini_client import GeminiClient, GeminiAuthError
 from llm_fingerprinter.grok_client import GrokClient, GrokAuthError
 from llm_fingerprinter.prompt_suite import PromptSuite
-from llm_fingerprinter.feature_extractor import FeatureExtractor
 from llm_fingerprinter.classifier import EnsembleClassifier, create_classifier
 from llm_fingerprinter.fingerprinter import LLMFingerprinter
 from llm_fingerprinter.fingerprint_store import FingerprintStore
 from llm_fingerprinter.template_classifier import TemplateClassifier
+from llm_fingerprinter.plotting import FingerprintPlotError, plot_fingerprint_projection
 from llm_fingerprinter import config
 
 
@@ -99,6 +99,11 @@ def get_api_client(backend, endpoint, api_key = None, request_file = None):
         return CustomClient(request_file=request_file, api_key=api_key)
     
     raise click.ClickException(f"Unknown backend: {backend}")
+
+
+def create_feature_extractor():
+    from llm_fingerprinter.feature_extractor import FeatureExtractor
+    return FeatureExtractor()
 
 
 def print_header():
@@ -298,7 +303,7 @@ def identify(ctx, backend, endpoint, api_key, request_file, model, repeats, earl
 
         click.echo(f"\n🔧 Initializing...")
         suite = PromptSuite()
-        extractor = FeatureExtractor()
+        extractor = create_feature_extractor()
         classifier = EnsembleClassifier(config.MODEL_FAMILIES)
         fingerprinter = LLMFingerprinter(endpoint if backend != "custom" else "custom", 
                                          client, suite, extractor, classifier)
@@ -424,7 +429,7 @@ def simulate(ctx, backend, endpoint, api_key, request_file, model, family, num_s
 
         click.echo(f"\n🔧 Initializing...")
         suite = PromptSuite()
-        extractor = FeatureExtractor()
+        extractor = create_feature_extractor()
         classifier = EnsembleClassifier(config.MODEL_FAMILIES)
         fingerprinter = LLMFingerprinter(endpoint if backend != "custom" else "custom",
                                          client, suite, extractor, classifier)
@@ -691,6 +696,53 @@ def list_fingerprints():
 
 
 @cli.command()
+@click.option('--input', 'input_dir', default=None, type=click.Path(file_okay=False),
+              help='Fingerprint directory (default: fingerprints/training)')
+@click.option('--output', 'output_path', default=None, type=click.Path(dir_okay=False),
+              help='PNG output path (default: plots/fingerprint_projection.png)')
+@click.option('--by', 'label_field', default='family', show_default=True,
+              help='Fingerprint field to use as the point label')
+@click.option('--method', default='pca', show_default=True,
+              type=click.Choice(['pca']),
+              help='2D projection method')
+def plot(input_dir, output_path, label_field, method):
+    """Plot semantic and stylistic 2D projections from saved fingerprints."""
+    print_header()
+
+    input_path = Path(input_dir) if input_dir else config.TRAINING_DIR
+    output = (Path(output_path) if output_path
+              else config.BASE_DIR / "plots" / "fingerprint_projection.png")
+
+    try:
+        summary = plot_fingerprint_projection(
+            input_dir=input_path,
+            output_path=output,
+            label_field=label_field,
+            method=method,
+        )
+    except FingerprintPlotError as e:
+        raise click.ClickException(str(e))
+
+    click.echo("\nPlot created")
+    click.echo(f"  Input:       {summary['input']}")
+    click.echo(f"  Output:      {summary['output']}")
+    click.echo(f"  Samples:     {summary['samples']}")
+    click.echo(f"  Semantic:    {summary['semantic_dim']} dims -> 2D")
+    click.echo(f"  Stylistic:   {summary['stylistic_dim']} dims -> 2D")
+    click.echo(f"  Method:      {summary['method']}")
+    click.echo("\nLabels:")
+    for label, count in sorted(summary['labels'].items()):
+        click.echo(f"  {label:16s} {count}")
+
+    if summary['skipped']:
+        click.echo(click.style(
+            f"\nSkipped {len(summary['skipped'])} invalid fingerprint(s). "
+            "Run with --verbose and inspect logs if this looks unexpected.",
+            fg='yellow'
+        ))
+
+
+@cli.command()
 def info():
     """Show system info."""
     print_header()
@@ -842,7 +894,7 @@ def fingerprint(ctx, backend, endpoint, api_key, request_file, model, repeats, o
 
         click.echo(f"\n🔧 Initializing...")
         suite = PromptSuite()
-        extractor = FeatureExtractor()
+        extractor = create_feature_extractor()
         classifier = EnsembleClassifier(config.MODEL_FAMILIES)
         fingerprinter = LLMFingerprinter(endpoint if backend != "custom" else "custom",
                                          client, suite, extractor, classifier)
@@ -1047,7 +1099,7 @@ def add_family(ctx, backend, endpoint, api_key, request_file,
         click.echo("✅ Connected")
 
         suite = PromptSuite()
-        extractor = FeatureExtractor()
+        extractor = create_feature_extractor()
         classifier = EnsembleClassifier(config.MODEL_FAMILIES)
         fingerprinter = LLMFingerprinter(
             endpoint if backend != "custom" else "custom",

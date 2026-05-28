@@ -97,7 +97,19 @@ llm-fingerprinter identify -b grok --model grok-3-mini
 llm-fingerprinter identify -b custom -r ./custom_request.txt
 ```
 
-### 2. Train Your Own Classifier
+### 2. Plot Training Fingerprints
+
+Generate 2D semantic/stylistic PCA projections from saved training fingerprints.
+
+```bash
+# First collect training fingerprints with simulate, then:
+llm-fingerprinter plot --input fingerprints/training --output plots/fingerprint_projection.png
+```
+
+The left panel uses the semantic embedding blocks from each fingerprint. The
+right panel uses the linguistic and behavioral feature blocks.
+
+### 3. Train Your Own Classifier
 
 ```bash
 # Step 1: Generate training fingerprints for each family
