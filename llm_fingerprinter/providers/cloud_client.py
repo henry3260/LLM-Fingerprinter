@@ -11,6 +11,7 @@ class CloudProvider(OllamaProvider):
             raise ValueError("CloudProvider requires a non-empty api_key")
         super().__init__(base_url=base_url, timeout=timeout)
         self.name = "cloud"
+        self.aliases = {"ollama-cloud"}
         self._session.headers.update(
             {
                 "Authorization": f"Bearer {api_key}",

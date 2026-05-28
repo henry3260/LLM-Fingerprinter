@@ -38,7 +38,7 @@ class OllamaProvider(BaseProvider):
         self._session = requests.Session()
 
     def generate(self, request: Any) -> Any:
-        validate_request(self.name, request)
+        validate_request(self, request)
         payload = {
             "model": request.model,
             "prompt": "\n".join(m.content for m in request.messages if m.role != "system"),

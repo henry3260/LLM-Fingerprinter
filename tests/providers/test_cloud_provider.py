@@ -18,3 +18,53 @@ def test_cloud_provider_sets_auth_and_name():
         assert provider._session.headers["Content-Type"] == "application/json"
     finally:
         provider.close()
+
+
+class _Msg:
+    def __init__(self, role: str, content: str):
+        self.role = role
+        self.content = content
+
+
+class _Request:
+    def __init__(self):
+        self.provider = "ollama-cloud"
+        self.model = "llama3.2"
+        self.messages = [_Msg("user", "hello")]
+        self.temperature = 0.1
+        self.max_tokens = 8
+
+
+class _FakeResponse:
+    status_code = 200
+
+    def raise_for_status(self):
+        return None
+
+    def json(self):
+        return {"response": "ok", "done": True, "prompt_eval_count": 1, "eval_count": 2}
+
+
+class _FakeSession:
+    def __init__(self):
+        self.headers = {}
+
+    def post(self, url, json, timeout):
+        return _FakeResponse()
+
+    def get(self, url, timeout):
+        return _FakeResponse()
+
+    def close(self):
+        return None
+
+
+def test_cloud_provider_accepts_ollama_cloud_alias_request_provider():
+    provider = CloudProvider(api_key="secret")
+    try:
+        provider._session = _FakeSession()
+        resp = provider.generate(_Request())
+        assert resp.provider == "cloud"
+        assert resp.text == "ok"
+    finally:
+        provider.close()
