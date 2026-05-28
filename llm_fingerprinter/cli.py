@@ -23,7 +23,7 @@ from llm_fingerprinter.custom_client import CustomClient, CustomAuthError
 from llm_fingerprinter.deepseek_client import DeepSeekClient, DeepSeekAuthError
 from llm_fingerprinter.gemini_client import GeminiClient, GeminiAuthError
 from llm_fingerprinter.grok_client import GrokClient, GrokAuthError
-from llm_fingerprinter.prompt_suite import PromptSuite
+from llm_fingerprinter.promptgen import PromptSuite
 from llm_fingerprinter.classifier import EnsembleClassifier, create_classifier
 from llm_fingerprinter.fingerprinter import LLMFingerprinter
 from llm_fingerprinter.fingerprint_store import FingerprintStore
