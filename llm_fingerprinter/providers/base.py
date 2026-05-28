@@ -6,6 +6,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Mapping
 
+from llm_fingerprinter.contracts.llm import LLMRequest, LLMResponse
+
 
 @dataclass(frozen=True)
 class ProviderCapabilities:
@@ -27,7 +29,7 @@ class BaseProvider(ABC):
         self.capabilities = capabilities or ProviderCapabilities()
 
     @abstractmethod
-    def generate(self, request: Any) -> Any:
+    def generate(self, request: LLMRequest) -> LLMResponse:
         """Execute a generation call for the given request object."""
 
     @abstractmethod

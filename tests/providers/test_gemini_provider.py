@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+from llm_fingerprinter.contracts.llm import LLMResponse
 from llm_fingerprinter.providers.gemini import GeminiProvider
 
 
@@ -53,6 +54,7 @@ def test_gemini_provider_generate_and_list_models():
     provider._client = _FakeClient()
 
     resp = provider.generate(_Request())
+    assert isinstance(resp, LLMResponse)
     assert resp.provider == "gemini"
     assert resp.text == "world"
     assert resp.usage.input_tokens == 3

@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+from llm_fingerprinter.contracts.llm import LLMResponse
 from llm_fingerprinter.providers.openai import OpenAIProvider
 
 
@@ -46,6 +47,7 @@ def test_openai_provider_generate_and_list_models():
     provider._client = _FakeClient()
 
     resp = provider.generate(_Request())
+    assert isinstance(resp, LLMResponse)
     assert resp.provider == "openai"
     assert resp.model == "gpt-test"
     assert resp.text == "hi"

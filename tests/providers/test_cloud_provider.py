@@ -1,3 +1,4 @@
+from llm_fingerprinter.contracts.llm import LLMResponse
 from llm_fingerprinter.providers.cloud_client import CloudProvider
 
 
@@ -64,6 +65,7 @@ def test_cloud_provider_accepts_ollama_cloud_alias_request_provider():
     try:
         provider._session = _FakeSession()
         resp = provider.generate(_Request())
+        assert isinstance(resp, LLMResponse)
         assert resp.provider == "cloud"
         assert resp.text == "ok"
     finally:

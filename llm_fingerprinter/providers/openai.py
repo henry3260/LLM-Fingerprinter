@@ -2,28 +2,8 @@
 
 from __future__ import annotations
 
-import time
-from dataclasses import dataclass, field
-from typing import Any
-
+from llm_fingerprinter.contracts.llm import LLMRequest, LLMResponse, TokenUsage
 from llm_fingerprinter.providers.base import BaseProvider, ProviderCapabilities, validate_request
-
-
-@dataclass(frozen=True)
-class _TokenUsage:
-    input_tokens: int = 0
-    output_tokens: int = 0
-    total_tokens: int = 0
-
-
-@dataclass(frozen=True)
-class _ProviderResponse:
-    provider: str
-    model: str
-    text: str
-    finish_reason: str | None = None
-    usage: _TokenUsage = field(default_factory=_TokenUsage)
-    raw: dict[str, Any] = field(default_factory=dict)
 
 
 class OpenAIProvider(BaseProvider):
@@ -39,9 +19,8 @@ class OpenAIProvider(BaseProvider):
 
         self._client = OpenAI(api_key=api_key, base_url=base_url.rstrip("/"), timeout=timeout, max_retries=max_retries)
 
-    def generate(self, request: Any) -> Any:
+    def generate(self, request: LLMRequest) -> LLMResponse:
         validate_request(self.name, request)
-        _ = time.time()
         response = self._client.chat.completions.create(
             model=request.model,
             messages=[{"role": m.role, "content": m.content} for m in request.messages],
@@ -54,12 +33,12 @@ class OpenAIProvider(BaseProvider):
         text = choice.message.content.strip() if choice and choice.message.content else ""
         usage = response.usage
 
-        return _ProviderResponse(
+        return LLMResponse(
             provider=self.name,
             model=request.model,
             text=text,
             finish_reason=(choice.finish_reason if choice else None),
-            usage=_TokenUsage(
+            usage=TokenUsage(
                 input_tokens=(usage.prompt_tokens if usage else 0),
                 output_tokens=(usage.completion_tokens if usage else 0),
                 total_tokens=(usage.total_tokens if usage else 0),

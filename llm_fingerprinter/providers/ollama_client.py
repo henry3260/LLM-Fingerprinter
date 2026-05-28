@@ -2,29 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
-
 import requests
 
+from llm_fingerprinter.contracts.llm import LLMRequest, LLMResponse, TokenUsage
 from llm_fingerprinter.providers.base import BaseProvider, ProviderCapabilities, validate_request
-
-
-@dataclass(frozen=True)
-class _TokenUsage:
-    input_tokens: int = 0
-    output_tokens: int = 0
-    total_tokens: int = 0
-
-
-@dataclass(frozen=True)
-class _ProviderResponse:
-    provider: str
-    model: str
-    text: str
-    finish_reason: str | None = None
-    usage: _TokenUsage = field(default_factory=_TokenUsage)
-    raw: dict[str, Any] = field(default_factory=dict)
 
 
 class OllamaProvider(BaseProvider):
@@ -37,7 +18,7 @@ class OllamaProvider(BaseProvider):
         self._timeout = timeout
         self._session = requests.Session()
 
-    def generate(self, request: Any) -> Any:
+    def generate(self, request: LLMRequest) -> LLMResponse:
         validate_request(self, request)
         payload = {
             "model": request.model,
@@ -60,12 +41,12 @@ class OllamaProvider(BaseProvider):
         eval_count = int(body.get("eval_count", 0) or 0)
         prompt_eval_count = int(body.get("prompt_eval_count", 0) or 0)
 
-        return _ProviderResponse(
+        return LLMResponse(
             provider=self.name,
             model=request.model,
             text=(body.get("response", "") or "").strip(),
             finish_reason=("stop" if body.get("done") else None),
-            usage=_TokenUsage(
+            usage=TokenUsage(
                 input_tokens=prompt_eval_count,
                 output_tokens=eval_count,
                 total_tokens=prompt_eval_count + eval_count,

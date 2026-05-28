@@ -4,29 +4,11 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass, field
-from typing import Any
 
+from llm_fingerprinter.contracts.llm import LLMRequest, LLMResponse, TokenUsage
 from llm_fingerprinter.providers.base import BaseProvider, ProviderCapabilities, validate_request
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class _FallbackTokenUsage:
-    input_tokens: int = 0
-    output_tokens: int = 0
-    total_tokens: int = 0
-
-
-@dataclass(frozen=True)
-class _FallbackResponse:
-    provider: str
-    model: str
-    text: str
-    finish_reason: str | None = None
-    usage: _FallbackTokenUsage = field(default_factory=_FallbackTokenUsage)
-    raw: dict[str, Any] = field(default_factory=dict)
 
 
 class GrokProvider(BaseProvider):
@@ -45,7 +27,7 @@ class GrokProvider(BaseProvider):
         self._base_url = base_url.rstrip("/")
         self._client = OpenAI(api_key=api_key, base_url=self._base_url, timeout=timeout, max_retries=max_retries)
 
-    def generate(self, request: Any) -> Any:
+    def generate(self, request: LLMRequest) -> LLMResponse:
         validate_request(self.name, request)
         start = time.time()
 
@@ -65,12 +47,12 @@ class GrokProvider(BaseProvider):
 
         logger.debug("Grok completion finished in %.2fs", elapsed)
 
-        return _FallbackResponse(
+        return LLMResponse(
             provider=self.name,
             model=request.model,
             text=text,
             finish_reason=(choice.finish_reason if choice else None),
-            usage=_FallbackTokenUsage(
+            usage=TokenUsage(
                 input_tokens=(usage.prompt_tokens if usage else 0),
                 output_tokens=(usage.completion_tokens if usage else 0),
                 total_tokens=(usage.total_tokens if usage else 0),
