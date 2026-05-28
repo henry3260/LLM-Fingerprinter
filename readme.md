@@ -57,6 +57,8 @@ The **custom backend** is the most flexible option — use it with:
 
 All you need is an HTTP request template file. See examples in `./example/`.
 
+If you are integrating through the provider factory (`create_provider`), use `provider="custom"` and pass at least `request_file`. Optional kwargs include `api_key` and `response_path` for extracting text from non-standard JSON payloads.
+
 ---
 
 ## Installation

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from llm_fingerprinter.providers.base import BaseProvider
+from llm_fingerprinter.providers.custom import CustomProvider
 from llm_fingerprinter.providers.deepseek import DeepSeekProvider
 from llm_fingerprinter.providers.gemini import GeminiProvider
 from llm_fingerprinter.providers.grok import GrokProvider
@@ -17,6 +18,8 @@ def create_provider(provider: str, **kwargs) -> BaseProvider:
         return OpenAIProvider(**kwargs)
     if provider_key == "deepseek":
         return DeepSeekProvider(**kwargs)
+    if provider_key == "custom":
+        return CustomProvider(**kwargs)
     if provider_key == "gemini":
         return GeminiProvider(**kwargs)
     raise ValueError(f"Unsupported provider: {provider}")

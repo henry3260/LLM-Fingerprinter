@@ -1,6 +1,7 @@
 """Provider package with normalized provider interfaces and implementations."""
 
 from .base import BaseProvider, ProviderCapabilities
+from .custom import CustomProvider
 from .deepseek import DeepSeekProvider
 from .gemini import GeminiProvider
 from .grok import GrokProvider
@@ -13,6 +14,7 @@ __all__ = [
     "GrokProvider",
     "OpenAIProvider",
     "DeepSeekProvider",
+    "CustomProvider",
     "GeminiProvider",
     "create_provider",
 ]
