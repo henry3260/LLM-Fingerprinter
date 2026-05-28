@@ -68,3 +68,11 @@ def test_prompt_suite_layer_filter():
 
     assert len(prompts) > 0
     assert all(p["layer"] == PromptSuite.LAYER_BEHAVIORAL for p in prompts)
+
+
+
+def test_backward_compatible_import_path():
+    from llm_fingerprinter.prompt_suite import PromptSuite as LegacyPromptSuite
+
+    suite = LegacyPromptSuite()
+    assert len(suite.get_prompts()) > 0
