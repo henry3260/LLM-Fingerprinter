@@ -6,6 +6,20 @@ from llm_fingerprinter.contracts.llm import LLMRequest, LLMResponse, TokenUsage
 from llm_fingerprinter.providers.base import BaseProvider, ProviderCapabilities, validate_request
 
 
+_MAX_COMPLETION_TOKEN_MODEL_PREFIXES = ("gpt-5", "o1", "o3", "o4")
+_DEFAULT_SAMPLING_MODEL_PREFIXES = _MAX_COMPLETION_TOKEN_MODEL_PREFIXES
+
+
+def _uses_max_completion_tokens(model: str) -> bool:
+    model_key = model.lower()
+    return model_key.startswith(_MAX_COMPLETION_TOKEN_MODEL_PREFIXES)
+
+
+def _requires_default_sampling(model: str) -> bool:
+    model_key = model.lower()
+    return model_key.startswith(_DEFAULT_SAMPLING_MODEL_PREFIXES)
+
+
 class OpenAIProvider(BaseProvider):
     def __init__(self, api_key: str, base_url: str = "https://api.openai.com/v1", timeout: int = 60, max_retries: int = 3):
         super().__init__(
@@ -21,13 +35,24 @@ class OpenAIProvider(BaseProvider):
 
     def generate(self, request: LLMRequest) -> LLMResponse:
         validate_request(self.name, request)
-        response = self._client.chat.completions.create(
-            model=request.model,
-            messages=[{"role": m.role, "content": m.content} for m in request.messages],
-            temperature=getattr(request, "temperature", 0.0),
-            max_tokens=getattr(request, "max_tokens", None),
-            top_p=getattr(request, "top_p", None),
-        )
+        params = {
+            "model": request.model,
+            "messages": [{"role": m.role, "content": m.content} for m in request.messages],
+        }
+
+        if not _requires_default_sampling(request.model):
+            params["temperature"] = getattr(request, "temperature", 0.0)
+
+        max_tokens = getattr(request, "max_tokens", None)
+        if max_tokens is not None:
+            token_param = "max_completion_tokens" if _uses_max_completion_tokens(request.model) else "max_tokens"
+            params[token_param] = max_tokens
+
+        top_p = getattr(request, "top_p", None)
+        if top_p is not None and not _requires_default_sampling(request.model):
+            params["top_p"] = top_p
+
+        response = self._client.chat.completions.create(**params)
 
         choice = response.choices[0] if response.choices else None
         text = choice.message.content.strip() if choice and choice.message.content else ""
