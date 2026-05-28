@@ -1,5 +1,6 @@
 from types import SimpleNamespace
 
+from llm_fingerprinter.contracts.llm import LLMResponse
 from llm_fingerprinter.providers.ollama_client import OllamaProvider
 
 
@@ -64,6 +65,7 @@ def test_ollama_provider_generate_and_list_models():
     provider._session = _FakeSession()
 
     resp = provider.generate(_Request())
+    assert isinstance(resp, LLMResponse)
     assert resp.provider == "ollama"
     assert resp.model == "llama3.2"
     assert resp.text == "answer"

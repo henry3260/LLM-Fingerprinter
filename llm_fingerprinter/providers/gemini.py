@@ -2,27 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any
-
+from llm_fingerprinter.contracts.llm import LLMRequest, LLMResponse, TokenUsage
 from llm_fingerprinter.providers.base import BaseProvider, ProviderCapabilities, validate_request
-
-
-@dataclass(frozen=True)
-class _TokenUsage:
-    input_tokens: int = 0
-    output_tokens: int = 0
-    total_tokens: int = 0
-
-
-@dataclass(frozen=True)
-class _ProviderResponse:
-    provider: str
-    model: str
-    text: str
-    finish_reason: str | None = None
-    usage: _TokenUsage = field(default_factory=_TokenUsage)
-    raw: dict[str, Any] = field(default_factory=dict)
 
 
 class GeminiProvider(BaseProvider):
@@ -42,7 +23,7 @@ class GeminiProvider(BaseProvider):
         self._timeout = timeout
         self._max_retries = max_retries
 
-    def generate(self, request: Any) -> Any:
+    def generate(self, request: LLMRequest) -> LLMResponse:
         validate_request(self.name, request)
 
         config = self._types.GenerateContentConfig(
@@ -64,11 +45,11 @@ class GeminiProvider(BaseProvider):
         input_tokens = getattr(usage, "prompt_token_count", 0) if usage else 0
         total_tokens = input_tokens + output_tokens
 
-        return _ProviderResponse(
+        return LLMResponse(
             provider=self.name,
             model=request.model,
             text=(response.text.strip() if response.text else ""),
-            usage=_TokenUsage(input_tokens=input_tokens, output_tokens=output_tokens, total_tokens=total_tokens),
+            usage=TokenUsage(input_tokens=input_tokens, output_tokens=output_tokens, total_tokens=total_tokens),
             raw=response.model_dump() if hasattr(response, "model_dump") else {},
         )
 

@@ -1,3 +1,4 @@
+from llm_fingerprinter.contracts.llm import LLMResponse
 from llm_fingerprinter.providers.custom import CustomProvider
 
 
@@ -46,6 +47,7 @@ def test_custom_provider_generate_normalizes_response_and_maps_args():
 
     resp = provider.generate(_Request())
 
+    assert isinstance(resp, LLMResponse)
     assert provider._client.called_with == {
         "prompt": "last user",
         "model": "custom-model",

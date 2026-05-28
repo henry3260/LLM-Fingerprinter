@@ -2,10 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any
-
-from llm_fingerprinter.contracts.llm import LLMResponse, TokenUsage
-from llm_fingerprinter.custom_client import CustomClient
+from llm_fingerprinter.contracts.llm import LLMRequest, LLMResponse, TokenUsage
 from llm_fingerprinter.providers.base import BaseProvider, ProviderCapabilities, validate_request
 
 
@@ -29,6 +26,8 @@ class CustomProvider(BaseProvider):
             name="custom",
             capabilities=ProviderCapabilities(supports_system_role=True, supports_tools=False, supports_json_mode=False),
         )
+        from llm_fingerprinter.custom_client import CustomClient
+
         self._client = CustomClient(
             request_file=request_file,
             api_key=api_key,
@@ -42,7 +41,7 @@ class CustomProvider(BaseProvider):
             response_path=response_path,
         )
 
-    def generate(self, request: Any) -> LLMResponse:
+    def generate(self, request: LLMRequest) -> LLMResponse:
         validate_request(self.name, request)
 
         messages = getattr(request, "messages", [])
