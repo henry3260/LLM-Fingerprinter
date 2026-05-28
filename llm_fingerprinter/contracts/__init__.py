@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """Shared typed contracts for cross-module communication.
 
 These DTOs define stable payload formats exchanged between providers,
