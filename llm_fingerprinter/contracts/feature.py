@@ -1,7 +1,9 @@
-from dataclasses import dataclass, field
-from typing import Any
+from __future__ import annotations
 
-FeatureValue = float | int | bool | str
+from dataclasses import dataclass, field
+from typing import Any, Union
+
+FeatureValue = Union[float, int, bool, str]
 
 
 @dataclass(frozen=True)
