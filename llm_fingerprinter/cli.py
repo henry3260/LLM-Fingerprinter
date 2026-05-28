@@ -10,6 +10,7 @@ import click
 import logging
 import sys
 import os
+from dataclasses import dataclass
 from pathlib import Path
 from datetime import datetime
 
@@ -29,6 +30,58 @@ from llm_fingerprinter.fingerprint_store import FingerprintStore
 from llm_fingerprinter.template_classifier import TemplateClassifier
 from llm_fingerprinter.plotting import FingerprintPlotError, plot_fingerprint_projection
 from llm_fingerprinter import config
+
+@dataclass(frozen=True)
+class BackendSpec:
+    default_endpoint: str
+    client_cls: type
+    requires_api_key: bool = False
+    key_missing_message: str | None = None
+    requires_request_file: bool = False
+    key_env: str | None = None
+
+
+BACKEND_SPECS: dict[str, BackendSpec] = {
+    "ollama": BackendSpec(
+        default_endpoint=config.OLLAMA_DEFAULT_ENDPOINT,
+        client_cls=OllamaClient,
+    ),
+    "ollama-cloud": BackendSpec(
+        default_endpoint=config.OLLAMA_CLOUD_DEFAULT_ENDPOINT,
+        client_cls=OllamaCloudClient,
+        requires_api_key=True,
+        key_missing_message="Ollama Cloud API key required. Set OLLAMA_CLOUD_API_KEY or use --api-key",
+    ),
+    "openai": BackendSpec(
+        default_endpoint=config.OPENAI_DEFAULT_ENDPOINT,
+        client_cls=OpenAIClient,
+        requires_api_key=True,
+        key_missing_message="OpenAI API key required. Set OPENAI_API_KEY or use --api-key",
+    ),
+    "deepseek": BackendSpec(
+        default_endpoint=config.DEEPSEEK_DEFAULT_ENDPOINT,
+        client_cls=DeepSeekClient,
+        requires_api_key=True,
+        key_missing_message="DeepSeek API key required. Set DEEPSEEK_API_KEY or use --api-key",
+    ),
+    "gemini": BackendSpec(
+        default_endpoint=config.GEMINI_DEFAULT_ENDPOINT,
+        client_cls=GeminiClient,
+        requires_api_key=True,
+        key_missing_message="Gemini API key required. Set GEMINI_API_KEY or use --api-key",
+    ),
+    "grok": BackendSpec(
+        default_endpoint=config.GROK_DEFAULT_ENDPOINT,
+        client_cls=GrokClient,
+        requires_api_key=True,
+        key_missing_message="Grok API key required. Set GROK_API_KEY or use --api-key",
+    ),
+    "custom": BackendSpec(
+        default_endpoint=config.CUSTOM_DEFAULT_ENDPOINT,
+        client_cls=CustomClient,
+        requires_request_file=True,
+    ),
+}
 
 
 def setup_logging(verbose: bool = False):
@@ -50,55 +103,32 @@ def setup_logging(verbose: bool = False):
 
 
 def get_default_endpoint(backend):
-    return {
-        "ollama":       config.OLLAMA_DEFAULT_ENDPOINT,
-        "ollama-cloud": config.OLLAMA_CLOUD_DEFAULT_ENDPOINT,
-        "openai":       config.OPENAI_DEFAULT_ENDPOINT,
-        "deepseek":     config.DEEPSEEK_DEFAULT_ENDPOINT,
-        "gemini":       config.GEMINI_DEFAULT_ENDPOINT,
-        "grok":         config.GROK_DEFAULT_ENDPOINT,
-        "custom":       config.CUSTOM_DEFAULT_ENDPOINT,
-    }.get(backend, config.CUSTOM_DEFAULT_ENDPOINT)
+    spec = BACKEND_SPECS.get(backend)
+    return spec.default_endpoint if spec else config.CUSTOM_DEFAULT_ENDPOINT
 
 
 def get_api_client(backend, endpoint, api_key = None, request_file = None):
-    if not api_key and backend in config.API_KEY_ENV_VARS:
-        api_key = os.environ.get(config.API_KEY_ENV_VARS[backend])
-    
-    if backend == "ollama":
-        return OllamaClient(endpoint=endpoint)
-      
-    elif backend == "ollama-cloud":
-        if not api_key:
-            raise click.ClickException("Ollama Cloud API key required. Set OLLAMA_CLOUD_API_KEY or use --api-key")
-        return OllamaCloudClient(api_key=api_key, endpoint=endpoint)
-    
-    elif backend == "openai":
-        if not api_key:
-            raise click.ClickException("OpenAI API key required. Set OPENAI_API_KEY or use --api-key")
-        return OpenAIClient(api_key=api_key, endpoint=endpoint)
-    
-    elif backend == "deepseek":
-        if not api_key:
-            raise click.ClickException("DeepSeek API key required. Set DEEPSEEK_API_KEY or use --api-key")
-        return DeepSeekClient(api_key=api_key, endpoint=endpoint)
-    
-    elif backend == "gemini":
-        if not api_key:
-            raise click.ClickException("Gemini API key required. Set GEMINI_API_KEY or use --api-key")
-        return GeminiClient(api_key=api_key, endpoint=endpoint)
+    spec = BACKEND_SPECS.get(backend)
+    if spec is None:
+        raise click.ClickException(f"Unknown backend: {backend}")
 
-    elif backend == "grok":
-        if not api_key:
-            raise click.ClickException("Grok API key required. Set GROK_API_KEY or use --api-key")
-        return GrokClient(api_key=api_key, endpoint=endpoint)
-    
-    elif backend == "custom":
-        if not request_file:
-            raise click.ClickException("Custom backend requires --request-file (-r)")
-        return CustomClient(request_file=request_file, api_key=api_key)
-    
-    raise click.ClickException(f"Unknown backend: {backend}")
+    key_env = config.API_KEY_ENV_VARS.get(backend)
+    if not api_key and key_env:
+        api_key = os.environ.get(key_env)
+
+    if spec.requires_api_key and not api_key:
+        raise click.ClickException(spec.key_missing_message or "API key required")
+
+    if spec.requires_request_file and not request_file:
+        raise click.ClickException("Custom backend requires --request-file (-r)")
+
+    kwargs = {"endpoint": endpoint}
+    if spec.requires_api_key or backend == "custom":
+        kwargs["api_key"] = api_key
+    if spec.requires_request_file:
+        kwargs["request_file"] = request_file
+
+    return spec.client_cls(**kwargs)
 
 
 def create_feature_extractor():
