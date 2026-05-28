@@ -1,5 +1,6 @@
 from llm_fingerprinter.providers import (
     CloudProvider,
+    CustomProvider,
     DeepSeekProvider,
     GeminiProvider,
     GrokProvider,
@@ -16,6 +17,7 @@ def test_exports_are_available():
     assert OllamaProvider is not None
     assert CloudProvider is not None
     assert DeepSeekProvider is not None
+    assert CustomProvider is not None
     assert GeminiProvider is not None
 
 
