@@ -6,6 +6,8 @@ Common workflows/commands
 3. identify  - Classify unknown models
 """
 
+from __future__ import annotations
+
 import click
 import logging
 import sys
@@ -16,70 +18,61 @@ from datetime import datetime
 
 import numpy as np
 
-from llm_fingerprinter.ollama_client import OllamaClient
-from llm_fingerprinter.openai_client import OpenAIClient, OpenAIAuthError
-from llm_fingerprinter.ollama_cloud_client import OllamaCloudClient, OllamaCloudAuthError
-from llm_fingerprinter.custom_client import CustomClient, CustomAuthError
-from llm_fingerprinter.deepseek_client import DeepSeekClient, DeepSeekAuthError
-from llm_fingerprinter.gemini_client import GeminiClient, GeminiAuthError
-from llm_fingerprinter.grok_client import GrokClient, GrokAuthError
 from llm_fingerprinter.promptgen import PromptSuite
 from llm_fingerprinter.classifier import EnsembleClassifier, create_classifier
 from llm_fingerprinter.fingerprinter import LLMFingerprinter
 from llm_fingerprinter.fingerprint_store import FingerprintStore
 from llm_fingerprinter.template_classifier import TemplateClassifier
 from llm_fingerprinter.plotting import FingerprintPlotError, plot_fingerprint_projection
+from llm_fingerprinter.provider_adapter import ProviderClientAdapter
+from llm_fingerprinter.providers import create_provider
 from llm_fingerprinter import config
 
 @dataclass(frozen=True)
 class BackendSpec:
     default_endpoint: str
-    client_cls: type
+    provider_name: str | None = None
     requires_api_key: bool = False
     key_missing_message: str | None = None
     requires_request_file: bool = False
-    key_env: str | None = None
+    supports_endpoint: bool = True
 
 
 BACKEND_SPECS: dict[str, BackendSpec] = {
     "ollama": BackendSpec(
         default_endpoint=config.OLLAMA_DEFAULT_ENDPOINT,
-        client_cls=OllamaClient,
     ),
     "ollama-cloud": BackendSpec(
         default_endpoint=config.OLLAMA_CLOUD_DEFAULT_ENDPOINT,
-        client_cls=OllamaCloudClient,
+        provider_name="ollama-cloud",
         requires_api_key=True,
         key_missing_message="Ollama Cloud API key required. Set OLLAMA_CLOUD_API_KEY or use --api-key",
     ),
     "openai": BackendSpec(
         default_endpoint=config.OPENAI_DEFAULT_ENDPOINT,
-        client_cls=OpenAIClient,
         requires_api_key=True,
         key_missing_message="OpenAI API key required. Set OPENAI_API_KEY or use --api-key",
     ),
     "deepseek": BackendSpec(
         default_endpoint=config.DEEPSEEK_DEFAULT_ENDPOINT,
-        client_cls=DeepSeekClient,
         requires_api_key=True,
         key_missing_message="DeepSeek API key required. Set DEEPSEEK_API_KEY or use --api-key",
     ),
     "gemini": BackendSpec(
         default_endpoint=config.GEMINI_DEFAULT_ENDPOINT,
-        client_cls=GeminiClient,
         requires_api_key=True,
         key_missing_message="Gemini API key required. Set GEMINI_API_KEY or use --api-key",
+        supports_endpoint=False,
     ),
     "grok": BackendSpec(
         default_endpoint=config.GROK_DEFAULT_ENDPOINT,
-        client_cls=GrokClient,
         requires_api_key=True,
         key_missing_message="Grok API key required. Set GROK_API_KEY or use --api-key",
     ),
     "custom": BackendSpec(
         default_endpoint=config.CUSTOM_DEFAULT_ENDPOINT,
-        client_cls=CustomClient,
         requires_request_file=True,
+        supports_endpoint=False,
     ),
 }
 
@@ -107,6 +100,14 @@ def get_default_endpoint(backend):
     return spec.default_endpoint if spec else config.CUSTOM_DEFAULT_ENDPOINT
 
 
+def is_custom_auth_error(error):
+    try:
+        from llm_fingerprinter.custom_client import CustomAuthError
+    except ImportError:
+        return False
+    return isinstance(error, CustomAuthError)
+
+
 def get_api_client(backend, endpoint, api_key = None, request_file = None):
     spec = BACKEND_SPECS.get(backend)
     if spec is None:
@@ -122,13 +123,22 @@ def get_api_client(backend, endpoint, api_key = None, request_file = None):
     if spec.requires_request_file and not request_file:
         raise click.ClickException("Custom backend requires --request-file (-r)")
 
-    kwargs = {"endpoint": endpoint}
-    if spec.requires_api_key or backend == "custom":
-        kwargs["api_key"] = api_key
-    if spec.requires_request_file:
-        kwargs["request_file"] = request_file
+    if backend == "custom":
+        from llm_fingerprinter.custom_client import CustomClient
 
-    return spec.client_cls(**kwargs)
+        return CustomClient(request_file=request_file, api_key=api_key)
+
+    endpoint = endpoint or spec.default_endpoint
+
+    kwargs = {}
+    if spec.supports_endpoint and endpoint:
+        kwargs["base_url"] = endpoint
+    if spec.requires_api_key:
+        kwargs["api_key"] = api_key
+
+    provider_name = spec.provider_name or backend
+    provider = create_provider(provider_name, **kwargs)
+    return ProviderClientAdapter(provider, provider_name=backend)
 
 
 def create_feature_extractor():
@@ -410,10 +420,10 @@ def identify(ctx, backend, endpoint, api_key, request_file, model, repeats, earl
         print_report(result)
         click.echo("\n✅ Done!")
 
-    except (OpenAIAuthError, OllamaCloudAuthError, DeepSeekAuthError, GeminiAuthError, CustomAuthError) as e:
-        click.echo(click.style(f"❌ Auth failed: {e}", fg='red'))
-        sys.exit(1)
     except Exception as e:
+        if is_custom_auth_error(e):
+            click.echo(click.style(f"❌ Auth failed: {e}", fg='red'))
+            sys.exit(1)
         click.echo(click.style(f"❌ Error: {e}", fg='red'))
         logger.exception("Failed")
         sys.exit(1)
@@ -496,10 +506,10 @@ def simulate(ctx, backend, endpoint, api_key, request_file, model, family, num_s
         click.echo(f"\n✅ Completed {success_count}/{num_sims} simulations")
         click.echo("   Next: Run 'train' to build classifier")
 
-    except (OpenAIAuthError, OllamaCloudAuthError, DeepSeekAuthError, GeminiAuthError, CustomAuthError) as e:
-        click.echo(click.style(f"❌ Auth failed: {e}", fg='red'))
-        sys.exit(1)
     except Exception as e:
+        if is_custom_auth_error(e):
+            click.echo(click.style(f"❌ Auth failed: {e}", fg='red'))
+            sys.exit(1)
         click.echo(click.style(f"❌ Error: {e}", fg='red'))
         logger.exception("Failed")
         sys.exit(1)
