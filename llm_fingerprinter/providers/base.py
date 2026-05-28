@@ -39,13 +39,22 @@ class BaseProvider(ABC):
         """Return model ids available to this provider account."""
 
 
-def validate_request(provider_name: str, request: Any) -> None:
+def validate_request(provider_name: str | BaseProvider, request: Any) -> None:
     """Basic validation to ensure request targets the provider instance."""
 
     request_provider = getattr(request, "provider", None)
-    if request_provider != provider_name:
+
+    if isinstance(provider_name, BaseProvider):
+        canonical_name = provider_name.name
+        aliases = set(getattr(provider_name, "aliases", ()) or ())
+    else:
+        canonical_name = provider_name
+        aliases = set()
+
+    accepted_names = {canonical_name, *aliases}
+    if request_provider not in accepted_names:
         raise ValueError(
-            f"Request provider '{request_provider}' does not match provider '{provider_name}'"
+            f"Request provider '{request_provider}' does not match provider '{canonical_name}'"
         )
 
 
