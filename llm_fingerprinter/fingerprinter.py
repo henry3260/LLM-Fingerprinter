@@ -4,6 +4,7 @@ import time
 from datetime import datetime
 
 from llm_fingerprinter import config
+from llm_fingerprinter.promptgen import PromptItem
 
 logger = logging.getLogger(__name__)
 
@@ -71,6 +72,29 @@ class LLMFingerprinter:
             for layer in layer_order
         ])
 
+    def _get_prompts_by_layer(self, layer_order: list) -> dict:
+        """Return prompts grouped by layer as PromptItem objects."""
+
+        if hasattr(self.suite, "get_prompt_package"):
+            package = self.suite.get_prompt_package()
+            return {
+                layer: package.by_layer(layer)
+                for layer in layer_order
+            }
+
+        return {
+            layer: [
+                PromptItem(
+                    text=prompt["text"],
+                    layer=prompt.get("layer", layer),
+                    category=prompt.get("category", "unknown"),
+                    system=prompt.get("system"),
+                )
+                for prompt in self.suite.get_prompts(layer=layer)
+            ]
+            for layer in layer_order
+        }
+
     def fingerprint_model(self, model_name, repeats=1,
                           progress_callback=None,
                           max_errors=10,
@@ -110,10 +134,7 @@ class LLMFingerprinter:
 
         layer_order = config.LAYER_ORDER  # ['discriminative', 'behavioral', 'stylistic']
 
-        prompts_by_layer = {
-            layer: self.suite.get_prompts(layer=layer)
-            for layer in layer_order
-        }
+        prompts_by_layer = self._get_prompts_by_layer(layer_order)
         total_queries = sum(len(prompts_by_layer[l]) for l in layer_order) * repeats
 
         all_responses = []
@@ -133,18 +154,24 @@ class LLMFingerprinter:
             logger.debug(f"Layer '{layer_name}': {len(layer_prompts)} prompts × {repeats} repeats")
 
             # ── Phase 1: collect API responses (sequential) ───────────────────
-            layer_pairs = []   # (prompt_text, response, prompt_dict)
-            for prompt_dict in layer_prompts:
-                prompt = prompt_dict['text']
+            layer_pairs = []   # (prompt_item, response)
+            for prompt_item in layer_prompts:
+                prompt = prompt_item.text
                 for rep in range(repeats):
                     try:
+                        generate_kwargs = {
+                            "model": model_name,
+                            "prompt": prompt,
+                            "temperature": temperature,
+                            "max_tokens": 512,
+                        }
+                        if prompt_item.system is not None:
+                            generate_kwargs["system"] = prompt_item.system
+
                         response = self.client.generate(
-                            model=model_name,
-                            prompt=prompt,
-                            temperature=temperature,
-                            max_tokens=512
+                            **generate_kwargs
                         )
-                        layer_pairs.append((prompt, response, prompt_dict))
+                        layer_pairs.append((prompt_item, response))
                         query_count += 1
                         consecutive_errors = 0
 
@@ -173,14 +200,14 @@ class LLMFingerprinter:
             # ── Phase 2: batch-extract features (single embedding forward pass)
             if layer_pairs:
                 features_batch = self.extractor.extract_batch(
-                    [(p, r) for p, r, _ in layer_pairs]
+                    [(prompt_item.text, response) for prompt_item, response in layer_pairs]
                 )
-                for (prompt, response, pd), features in zip(layer_pairs, features_batch):
+                for (prompt_item, response), features in zip(layer_pairs, features_batch):
                     all_responses.append({
-                        'prompt': prompt,
+                        'prompt': prompt_item.text,
                         'response': response,
-                        'layer': layer_name,
-                        'category': pd.get('category', 'unknown'),
+                        'layer': prompt_item.layer,
+                        'category': prompt_item.category,
                     })
                     layer_features[layer_name].append(features)
 
