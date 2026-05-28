@@ -1,0 +1,5 @@
+http://localhost:11434/api/generate
+{
+  "model": "qwen3:4b",
+  "prompt": "$PROMPT$"
+}
