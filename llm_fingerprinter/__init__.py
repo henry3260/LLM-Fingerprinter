@@ -32,7 +32,7 @@ def __getattr__(name):
         from llm_fingerprinter.feature_extractor import FeatureExtractor
         return FeatureExtractor
     if name == "PromptSuite":
-        from llm_fingerprinter.prompt_suite import PromptSuite
+        from llm_fingerprinter.promptgen import PromptSuite
         return PromptSuite
     if name == "FingerprintStore":
         from llm_fingerprinter.fingerprint_store import FingerprintStore
