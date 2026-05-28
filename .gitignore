@@ -9,6 +9,7 @@ __pycache__
 .pypirc
 env/
 venv/
+.venv/
 *.env
 .idea/
 .vscode/
@@ -42,3 +43,7 @@ produce*
 *.tar.gz
 *.whl
 sdist/
+
+# Keep the plots directory in the repo, but ignore generated plot outputs.
+plots/*
+!plots/.gitkeep
