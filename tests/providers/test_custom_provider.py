@@ -22,49 +22,86 @@ class _Request:
         self.max_tokens = 128
 
 
-class _FakeCustomClient:
+class _FakeResponse:
+    def __init__(self, status_code=200, body=None, text=None):
+        self.status_code = status_code
+        self._body = body if body is not None else {"response": " custom response "}
+        self.text = text if text is not None else '{"response": " custom response "}'
+
+    def json(self):
+        return self._body
+
+
+class _FakeSession:
     def __init__(self):
-        self.called_with = None
+        self.posts = []
+        self.closed = False
 
-    def generate(self, **kwargs):
-        self.called_with = kwargs
-        return " custom response "
+    def post(self, url, json, timeout):
+        self.posts.append({"url": url, "json": json, "timeout": timeout})
+        return _FakeResponse()
 
-    def list_models(self):
-        return ["m1", "m2"]
-
-    def _check_connectivity(self):
-        return True
+    def head(self, url, timeout):
+        return _FakeResponse(status_code=200, body={}, text="")
 
     def close(self):
-        return None
+        self.closed = True
 
 
 def test_custom_provider_generate_normalizes_response_and_maps_args():
     provider = CustomProvider.__new__(CustomProvider)
     provider.name = "custom"
-    provider._client = _FakeCustomClient()
+    provider.url = "https://example.test/generate"
+    provider.payload_template = (
+        '{"model": "$MODEL$", "prompt": "$PROMPT$", "system": "$SYSTEM$", '
+        '"temperature": $TEMPERATURE$, "max_tokens": $MAX_TOKENS$}'
+    )
+    provider.default_model = None
+    provider.default_temperature = 0.7
+    provider.default_max_tokens = 512
+    provider.default_system = ""
+    provider.response_path = None
+    provider.timeout = 120
+    provider.session = _FakeSession()
 
     resp = provider.generate(_Request())
 
     assert isinstance(resp, LLMResponse)
-    assert provider._client.called_with == {
-        "prompt": "last user",
-        "model": "custom-model",
-        "temperature": 0.6,
-        "max_tokens": 128,
-        "system": "sys prompt",
+    assert provider.session.posts[-1] == {
+        "url": "https://example.test/generate",
+        "timeout": 120,
+        "json": {
+            "model": "custom-model",
+            "prompt": "last user",
+            "system": "sys prompt",
+            "temperature": 0.6,
+            "max_tokens": 128,
+        },
     }
     assert resp.provider == "custom"
     assert resp.model == "custom-model"
-    assert resp.text == " custom response "
+    assert resp.text == "custom response"
     assert resp.usage.total_tokens == 0
 
 
 def test_custom_provider_health_and_list_models():
     provider = CustomProvider.__new__(CustomProvider)
     provider.name = "custom"
-    provider._client = _FakeCustomClient()
+    provider.url = "https://example.test/generate"
+    provider.session = _FakeSession()
 
     assert provider.health_check() is True
-    assert provider.list_models() == ["m1", "m2"]
+    assert provider.list_models() == []
+    provider.close()
+    assert provider.session.closed is True
+
+
+def test_custom_provider_build_payload_escapes_prompt_content():
+    provider = CustomProvider.__new__(CustomProvider)
+    provider.payload_template = '{"prompt": "$PROMPT$"}'
+    provider.default_system = ""
+    provider.default_model = None
+    provider.default_temperature = 0.7
+    provider.default_max_tokens = 512
+
+    assert provider._build_payload('hello "quoted"') == {"prompt": 'hello "quoted"'}

@@ -11,8 +11,6 @@ __all__ = [
     "FeatureExtractor",
     "PromptSuite",
     "FingerprintStore",
-    "BaseClient",
-    "ClientError",
     "__version__",
 ]
 
@@ -37,10 +35,4 @@ def __getattr__(name):
     if name == "FingerprintStore":
         from llm_fingerprinter.fingerprint_store import FingerprintStore
         return FingerprintStore
-    if name in {"BaseClient", "ClientError"}:
-        from llm_fingerprinter.base_client import BaseClient, ClientError
-        return {
-            "BaseClient": BaseClient,
-            "ClientError": ClientError,
-        }[name]
     raise AttributeError(f"module 'llm_fingerprinter' has no attribute {name!r}")

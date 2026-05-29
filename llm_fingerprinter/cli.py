@@ -102,7 +102,7 @@ def get_default_endpoint(backend):
 
 def is_custom_auth_error(error):
     try:
-        from llm_fingerprinter.custom_client import CustomAuthError
+        from llm_fingerprinter.providers.custom import CustomAuthError
     except ImportError:
         return False
     return isinstance(error, CustomAuthError)
@@ -123,17 +123,16 @@ def get_api_client(backend, endpoint, api_key = None, request_file = None):
     if spec.requires_request_file and not request_file:
         raise click.ClickException("Custom backend requires --request-file (-r)")
 
-    if backend == "custom":
-        from llm_fingerprinter.custom_client import CustomClient
-
-        return CustomClient(request_file=request_file, api_key=api_key)
-
     endpoint = endpoint or spec.default_endpoint
 
     kwargs = {}
     if spec.supports_endpoint and endpoint:
         kwargs["base_url"] = endpoint
-    if spec.requires_api_key:
+    if backend == "custom":
+        kwargs["request_file"] = request_file
+        if api_key:
+            kwargs["api_key"] = api_key
+    elif spec.requires_api_key:
         kwargs["api_key"] = api_key
 
     provider_name = spec.provider_name or backend
