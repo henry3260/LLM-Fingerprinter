@@ -1,12 +1,20 @@
-import numpy as np
+from __future__ import annotations
+
 import logging
-from sklearn.ensemble import RandomForestClassifier
-from llm_fingerprinter import config
-from sklearn.svm import SVC
-from sklearn.neural_network import MLPClassifier
-from sklearn.preprocessing import StandardScaler
-from sklearn.decomposition import PCA
+
 import joblib
+import numpy as np
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.neural_network import MLPClassifier
+from sklearn.decomposition import PCA
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVC
+
+from llm_fingerprinter import config
+from llm_fingerprinter.contracts.classify import (
+    ClassificationResult,
+    MultiClassResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -401,6 +409,54 @@ class EnsembleClassifier:
         except Exception as e:
             logger.error(f"Prediction failed: {e}")
             return None, 0.0, {}, {}
+
+    def classify_result(self, fingerprint) -> MultiClassResult:
+        """Return a contract-based classification result.
+
+        The legacy ``predict_with_confidence`` tuple is kept for existing
+        callers. This method is the structured bridge for newer core flow code.
+        """
+
+        family, confidence, all_probs, ood_info = self.predict_with_confidence(
+            fingerprint
+        )
+        if family is None:
+            return MultiClassResult(
+                top_label=None,
+                top_score=0.0,
+                metadata={
+                    "classifier_type": "ensemble",
+                    "error": "classification_failed",
+                    "probabilities": all_probs,
+                    "ood_info": ood_info,
+                },
+            )
+
+        is_ood = bool(ood_info.get("is_ood", False))
+        ranking = [
+            ClassificationResult(
+                label=label,
+                score=float(score),
+                rationale=["ensemble_probability"],
+                raw={"is_predicted_label": label == family},
+            )
+            for label, score in sorted(
+                all_probs.items(), key=lambda item: item[1], reverse=True
+            )
+        ]
+
+        return MultiClassResult(
+            top_label="unknown" if is_ood else family,
+            top_score=float(confidence),
+            ranking=ranking,
+            metadata={
+                "classifier_type": "ensemble",
+                "predicted_label": family,
+                "is_ood": is_ood,
+                "ood_info": ood_info,
+                "probabilities": all_probs,
+            },
+        )
 
     def save(self, filepath):
         """Save trained classifier to file."""

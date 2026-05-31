@@ -21,9 +21,14 @@ Workflow:
          tc.save(path)
 """
 
+import joblib
 import logging
 import numpy as np
-import joblib
+
+from llm_fingerprinter.contracts.classify import (
+    ClassificationResult,
+    MultiClassResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -227,6 +232,40 @@ class TemplateClassifier:
             "ood_reason": ood_reason,
             "inferred_family": inferred_family,
         }
+
+    def classify_result(self, fingerprint: np.ndarray, top_k: int = 3) -> MultiClassResult:
+        """Return a contract-based classification result.
+
+        The legacy ``classify`` dict is kept for existing callers. This method
+        exposes the same decision through the shared classification contract.
+        """
+
+        legacy = self.classify(fingerprint, top_k=top_k)
+        ranking = []
+        for item in legacy["ranked"]:
+            distance = float(item["distance"])
+            ranking.append(
+                ClassificationResult(
+                    label=item["family"],
+                    score=float(max(0.0, 1.0 - distance / 2.0)),
+                    rationale=["cosine_template_distance"],
+                    raw={"distance": distance},
+                )
+            )
+
+        return MultiClassResult(
+            top_label=legacy["family"],
+            top_score=float(legacy["confidence"]),
+            ranking=ranking,
+            metadata={
+                "classifier_type": "template",
+                "predicted_label": legacy["predicted_family"],
+                "distance": legacy["distance"],
+                "is_ood": legacy["is_ood"],
+                "ood_reason": legacy["ood_reason"],
+                "inferred_family": legacy["inferred_family"],
+            },
+        )
 
     # ── Persistence ──────────────────────────────────────────────────────────
 
