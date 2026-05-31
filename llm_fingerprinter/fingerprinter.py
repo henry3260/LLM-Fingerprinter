@@ -392,24 +392,40 @@ class LLMFingerprinter:
         if fp is None:
             return {'model': model_name, 'error': 'Fingerprinting failed'}
 
-        family, confidence, all_probs, ood_info = self.classifier.predict_with_confidence(
-            fp['vector']
+        classification = self.classifier.classify_result(fp['vector'])
+        classification_meta = classification.metadata or {}
+        predicted_family = classification_meta.get(
+            'predicted_label',
+            classification.top_label,
         )
 
-        if family is None:
+        if classification.top_label is None or predicted_family is None:
             return {
                 'model': model_name,
                 'error': 'Classification failed',
                 'fingerprint': fp
             }
 
-        is_ood = ood_info.get('is_ood', False)
+        is_ood = bool(
+            classification_meta.get('is_ood', classification.top_label == 'unknown')
+        )
+        probabilities = classification_meta.get('probabilities')
+        if probabilities is None:
+            probabilities = {
+                item.label: item.score
+                for item in classification.ranking
+            }
+
+        ood_info = classification_meta.get('ood_info', {})
+        confidence = float(classification.top_score)
         result = {
             'model': model_name,
-            'family': 'unknown' if is_ood else family,
-            'predicted_family': family,
+            'family': classification.top_label,
+            'predicted_family': predicted_family,
             'confidence': round(confidence, 4),
-            'all_probabilities': {k: round(v, 4) for k, v in all_probs.items()},
+            'all_probabilities': {
+                k: round(float(v), 4) for k, v in probabilities.items()
+            },
             'ood_detected': is_ood,
             'ood_details': ood_info,
             'early_stopped': fp['metadata'].get('early_stopped', False),
@@ -421,10 +437,13 @@ class LLMFingerprinter:
 
         if is_ood:
             logger.warning(
-                f"OOD detected for {model_name}: best guess {family} "
+                f"OOD detected for {model_name}: best guess {predicted_family} "
                 f"({confidence * 100:.1f}% confidence)"
             )
         else:
-            logger.info(f"Identified as {family} ({confidence * 100:.1f}% confidence)")
+            logger.info(
+                f"Identified as {classification.top_label} "
+                f"({confidence * 100:.1f}% confidence)"
+            )
 
         return result
