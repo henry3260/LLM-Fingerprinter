@@ -1,6 +1,12 @@
-import numpy as np
+from __future__ import annotations
+
 import logging
 import re
+from typing import Any
+
+import numpy as np
+
+from llm_fingerprinter.contracts.feature import Feature, FeatureVector
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +47,17 @@ def _setup_nltk():
 
 _setup_nltk()
 
-from sentence_transformers import SentenceTransformer
+SentenceTransformer = None
+
+
+def _get_sentence_transformer_class():
+    global SentenceTransformer
+    if SentenceTransformer is None:
+        from sentence_transformers import SentenceTransformer as loaded_transformer
+
+        SentenceTransformer = loaded_transformer
+    return SentenceTransformer
+
 
 # Safe NLTK imports with fallbacks
 try:
@@ -106,7 +122,31 @@ def _get_stopwords():
 class FeatureExtractor:
     
     LINGUISTIC_DIM = 12
-    BEHAVIORAL_DIM = 6 
+    BEHAVIORAL_DIM = 6
+    FEATURE_NAMESPACE = "llm_response"
+    FEATURE_SCHEMA_VERSION = "feature_extractor.v1"
+    LINGUISTIC_FEATURE_NAMES = (
+        "total_chars",
+        "total_words",
+        "type_token_ratio",
+        "avg_word_length",
+        "sentence_count",
+        "avg_sentence_length",
+        "punctuation_ratio",
+        "code_block_ratio",
+        "structural_marker_ratio",
+        "token_entropy",
+        "ai_marker_count",
+        "capital_ratio",
+    )
+    BEHAVIORAL_FEATURE_NAMES = (
+        "refusal_score",
+        "format_adherence_score",
+        "reasoning_presence_score",
+        "instruction_compliance_score",
+        "length_normalization_score",
+        "formality_score",
+    )
     
     def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
         """
@@ -117,15 +157,75 @@ class FeatureExtractor:
                        Note: all-MiniLM-L6-v2 outputs 384-dim embeddings.
         """
         self.model_name = model_name
-        self.embedding_model = SentenceTransformer(model_name)
+        transformer_cls = _get_sentence_transformer_class()
+        self.embedding_model = transformer_cls(model_name)
         self.embedding_dim = self.embedding_model.get_sentence_embedding_dimension()
         self.stop_words = _get_stopwords()
             
         logger.info(f"Initialized FeatureExtractor with {model_name} "
                    f"(embedding dim: {self.embedding_dim})")
     
-    def extract_batch(self, prompt_response_pairs: list) -> list:
-        """Extract features for multiple (prompt, response) pairs efficiently.
+    def get_feature_names(self) -> list[str]:
+        """Return the stable feature order used by vector serialization."""
+
+        return (
+            [f"embedding_{i}" for i in range(self.embedding_dim)]
+            + list(self.LINGUISTIC_FEATURE_NAMES)
+            + list(self.BEHAVIORAL_FEATURE_NAMES)
+        )
+
+    @staticmethod
+    def feature_vector_to_array(feature_vector: FeatureVector) -> np.ndarray:
+        """Convert a FeatureVector to the legacy numpy representation."""
+
+        return np.array(
+            [float(item.value) for item in feature_vector.items],
+            dtype=np.float32,
+        )
+
+    def _empty_feature_array(self) -> np.ndarray:
+        return np.zeros(self.get_feature_dim(), dtype=np.float32)
+
+    def _coerce_response_text(self, response: Any) -> str:
+        text = getattr(response, "text", response)
+        if text is None:
+            return ""
+        return str(text)
+
+    def _build_feature_vector(
+        self,
+        prompt: str,
+        response: str,
+        values: np.ndarray,
+        empty_response: bool = False,
+    ) -> FeatureVector:
+        names = self.get_feature_names()
+        values = values.astype(np.float32).ravel()
+        if len(values) != len(names):
+            raise ValueError(
+                f"Feature dimension mismatch: {len(values)} values for {len(names)} names"
+            )
+
+        return FeatureVector(
+            items=[
+                Feature(name=name, value=float(value))
+                for name, value in zip(names, values)
+            ],
+            namespace=self.FEATURE_NAMESPACE,
+            metadata={
+                "schema_version": self.FEATURE_SCHEMA_VERSION,
+                "embedding_model": self.model_name,
+                "embedding_dim": int(self.embedding_dim),
+                "linguistic_dim": self.LINGUISTIC_DIM,
+                "behavioral_dim": self.BEHAVIORAL_DIM,
+                "prompt_length": len(prompt),
+                "response_length": len(response),
+                "empty_response": empty_response,
+            },
+        )
+
+    def extract_batch_vectors(self, prompt_response_pairs: list) -> list[FeatureVector]:
+        """Extract structured FeatureVector objects for prompt/response pairs.
 
         Batches the embedding step (the expensive GPU/CPU forward pass) so that
         N responses are encoded in one call instead of N separate calls.
@@ -136,16 +236,18 @@ class FeatureExtractor:
             prompt_response_pairs: list of (prompt_str, response_str) tuples
 
         Returns:
-            List of np.ndarray, one per pair, in the same order.
+            List of FeatureVector, one per pair, in the same order.
             Zero-vectors are returned for empty/failed responses.
         """
         if not prompt_response_pairs:
             return []
 
-        total_dim = self.embedding_dim + self.LINGUISTIC_DIM + self.BEHAVIORAL_DIM
-        responses = [r for _, r in prompt_response_pairs]
+        normalized_pairs = [
+            (str(prompt), self._coerce_response_text(response))
+            for prompt, response in prompt_response_pairs
+        ]
+        responses = [response for _, response in normalized_pairs]
 
-        # --- Batch encode all responses in one forward pass ---
         try:
             embeddings = self.embedding_model.encode(
                 responses,
@@ -160,26 +262,53 @@ class FeatureExtractor:
             ])
 
         results = []
-        for (prompt, response), embedding in zip(prompt_response_pairs, embeddings):
+        for (prompt, response), embedding in zip(normalized_pairs, embeddings):
             if not response or not response.strip():
-                results.append(np.zeros(total_dim, dtype=np.float32))
+                results.append(
+                    self._build_feature_vector(
+                        prompt,
+                        response,
+                        self._empty_feature_array(),
+                        empty_response=True,
+                    )
+                )
                 continue
             ling = self._linguistic_features(response)
-            beh  = self._behavioral_features(prompt, response)
-            results.append(np.concatenate([embedding, ling, beh]))
+            beh = self._behavioral_features(prompt, response)
+            results.append(
+                self._build_feature_vector(
+                    prompt,
+                    response,
+                    np.concatenate([embedding.astype(np.float32), ling, beh]),
+                )
+            )
 
         return results
 
-    def extract(self, prompt: str, response: str):
+    def extract_batch(self, prompt_response_pairs: list) -> list:
+        """Extract legacy numpy arrays for multiple prompt/response pairs."""
 
-        if not response or not response.strip():
+        return [
+            self.feature_vector_to_array(feature_vector)
+            for feature_vector in self.extract_batch_vectors(prompt_response_pairs)
+        ]
+
+    def extract_vector(self, prompt: str, response: Any) -> FeatureVector:
+        """Extract a structured feature vector for one prompt/response pair."""
+
+        response_text = self._coerce_response_text(response)
+        if not response_text or not response_text.strip():
             logger.warning("Empty response, returning zero features")
-            total_dim = self.embedding_dim + self.LINGUISTIC_DIM + self.BEHAVIORAL_DIM
-            return np.zeros(total_dim, dtype=np.float32)
+            return self._build_feature_vector(
+                prompt,
+                response_text,
+                self._empty_feature_array(),
+                empty_response=True,
+            )
         
-        embedding_features = self._embedding_features(response)
-        linguistic_features = self._linguistic_features(response)
-        behavioral_features = self._behavioral_features(prompt, response)
+        embedding_features = self._embedding_features(response_text)
+        linguistic_features = self._linguistic_features(response_text)
+        behavioral_features = self._behavioral_features(prompt, response_text)
         
         all_features = np.concatenate([
             embedding_features,
@@ -187,7 +316,12 @@ class FeatureExtractor:
             behavioral_features
         ])
         
-        return all_features
+        return self._build_feature_vector(prompt, response_text, all_features)
+
+    def extract(self, prompt: str, response: Any):
+        """Extract the legacy numpy array representation for one response."""
+
+        return self.feature_vector_to_array(self.extract_vector(prompt, response))
     
     def get_feature_dim(self):
 
