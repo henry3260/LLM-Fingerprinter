@@ -1,6 +1,7 @@
 import numpy as np
 
 from llm_fingerprinter import config
+from llm_fingerprinter.contracts.feature import Feature, FeatureVector
 from llm_fingerprinter.fingerprinter import LLMFingerprinter
 from llm_fingerprinter.promptgen import PromptItem, PromptPackage
 
@@ -47,12 +48,30 @@ class _Extractor:
     def get_feature_dim(self):
         return 3
 
-    def extract_batch(self, prompt_response_pairs):
+    @staticmethod
+    def feature_vector_to_array(feature_vector):
+        return np.array(
+            [float(feature.value) for feature in feature_vector.items],
+            dtype=np.float32,
+        )
+
+    def extract_batch_vectors(self, prompt_response_pairs):
         self.pairs.extend(prompt_response_pairs)
         return [
-            np.array([idx + 1, idx + 2, idx + 3], dtype=np.float32)
+            FeatureVector(
+                items=[
+                    Feature(name="embedding_0", value=idx + 1),
+                    Feature(name="total_chars", value=idx + 2),
+                    Feature(name="refusal_score", value=idx + 3),
+                ],
+                namespace="test",
+                metadata={"pair_index": idx},
+            )
             for idx, _ in enumerate(prompt_response_pairs)
         ]
+
+    def extract_batch(self, prompt_response_pairs):
+        raise AssertionError("fingerprint_model should use extract_batch_vectors")
 
 
 def test_fingerprint_model_consumes_prompt_package(monkeypatch):
@@ -81,11 +100,13 @@ def test_fingerprint_model_consumes_prompt_package(monkeypatch):
             "response": "response:alpha prompt:sys-a",
             "layer": "alpha",
             "category": "cat-a",
+            "feature_metadata": {"pair_index": 0},
         },
         {
             "prompt": "beta prompt",
             "response": "response:beta prompt:",
             "layer": "beta",
             "category": "cat-b",
+            "feature_metadata": {"pair_index": 0},
         },
     ]
