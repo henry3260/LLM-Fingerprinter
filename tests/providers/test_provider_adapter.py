@@ -1,10 +1,6 @@
+from llm_fingerprinter.contracts.llm import LLMResponse, TokenUsage
 from llm_fingerprinter.provider_adapter import ProviderClientAdapter
 from llm_fingerprinter.providers.base import BaseProvider, ProviderCapabilities
-
-
-class _Response:
-    def __init__(self, text: str):
-        self.text = text
 
 
 class _FakeProvider(BaseProvider):
@@ -15,7 +11,13 @@ class _FakeProvider(BaseProvider):
 
     def generate(self, request):
         self.requests.append(request)
-        return _Response("generated text")
+        return LLMResponse(
+            provider=request.provider,
+            model=request.model,
+            text="generated text",
+            finish_reason="stop",
+            usage=TokenUsage(input_tokens=1, output_tokens=2, total_tokens=3),
+        )
 
     def health_check(self) -> bool:
         return True
@@ -51,6 +53,26 @@ def test_adapter_builds_normalized_request():
         ("system", "system prompt"),
         ("user", "hello"),
     ]
+
+
+def test_adapter_exposes_full_response_for_metadata():
+    provider = _FakeProvider()
+    client = ProviderClientAdapter(provider, provider_name="fake-alias")
+
+    response = client.generate_response(
+        model="model-a",
+        prompt="hello",
+        temperature=0.3,
+        max_tokens=12,
+        system="system prompt",
+        top_p=0.9,
+    )
+
+    assert response.text == "generated text"
+    assert response.provider == "fake-alias"
+    assert response.model == "model-a"
+    assert response.finish_reason == "stop"
+    assert response.usage.total_tokens == 3
 
 
 def test_adapter_delegates_health_models_and_close():

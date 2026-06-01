@@ -210,9 +210,15 @@ class LLMFingerprinter:
                         if prompt_item.system is not None:
                             generate_kwargs["system"] = prompt_item.system
 
-                        response = self.client.generate(
-                            **generate_kwargs
+                        generate_response = getattr(
+                            self.client,
+                            "generate_response",
+                            None,
                         )
+                        if callable(generate_response):
+                            response = generate_response(**generate_kwargs)
+                        else:
+                            response = self.client.generate(**generate_kwargs)
                         layer_pairs.append((prompt_item, response))
                         query_count += 1
                         consecutive_errors = 0

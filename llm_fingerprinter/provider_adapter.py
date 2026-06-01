@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from typing import Optional
 
-from llm_fingerprinter.contracts.llm import LLMRequest, Message
+from llm_fingerprinter.contracts.llm import LLMRequest, LLMResponse, Message
 from llm_fingerprinter.providers.base import BaseProvider
 
 
@@ -36,7 +36,7 @@ class ProviderClientAdapter:
         self._last_health_check = now
         return self._is_healthy
 
-    def generate(
+    def _build_request(
         self,
         model: Optional[str],
         prompt: str,
@@ -51,7 +51,7 @@ class ProviderClientAdapter:
             messages.append(Message(role="system", content=system))
         messages.append(Message(role="user", content=prompt))
 
-        request = LLMRequest(
+        return LLMRequest(
             provider=self.provider_name,
             model=model or "",
             messages=messages,
@@ -59,7 +59,46 @@ class ProviderClientAdapter:
             max_tokens=max_tokens,
             top_p=top_p,
         )
-        return self.provider.generate(request).text
+
+    def generate_response(
+        self,
+        model: Optional[str],
+        prompt: str,
+        temperature: float = 0.7,
+        max_tokens: int = 512,
+        system: Optional[str] = None,
+        top_p: Optional[float] = None,
+        **_: object,
+    ) -> LLMResponse:
+        request = self._build_request(
+            model=model,
+            prompt=prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            system=system,
+            top_p=top_p,
+        )
+        return self.provider.generate(request)
+
+    def generate(
+        self,
+        model: Optional[str],
+        prompt: str,
+        temperature: float = 0.7,
+        max_tokens: int = 512,
+        system: Optional[str] = None,
+        top_p: Optional[float] = None,
+        **kwargs: object,
+    ) -> str:
+        return self.generate_response(
+            model=model,
+            prompt=prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            system=system,
+            top_p=top_p,
+            **kwargs,
+        ).text
 
     def list_models(self) -> list[str]:
         return self.provider.list_models()

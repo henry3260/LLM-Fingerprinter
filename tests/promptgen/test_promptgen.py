@@ -32,7 +32,7 @@ class _Client:
     def __init__(self):
         self.calls = []
 
-    def generate(self, **kwargs):
+    def generate_response(self, **kwargs):
         self.calls.append(kwargs)
         system = kwargs.get("system") or ""
         return LLMResponse(
@@ -46,6 +46,9 @@ class _Client:
                 total_tokens=len(kwargs["prompt"]) + 3,
             ),
         )
+
+    def generate(self, **kwargs):
+        raise AssertionError("fingerprint_model should use generate_response")
 
 
 class _Extractor:
