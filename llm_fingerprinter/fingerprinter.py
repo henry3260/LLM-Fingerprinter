@@ -1,6 +1,7 @@
 import numpy as np
 import logging
 import time
+from dataclasses import asdict, is_dataclass
 from datetime import datetime
 
 from llm_fingerprinter import config
@@ -95,6 +96,51 @@ class LLMFingerprinter:
             for layer in layer_order
         }
 
+    def _response_text(self, response) -> str:
+        """Return plain text from either legacy strings or LLMResponse objects."""
+
+        text = getattr(response, "text", response)
+        if text is None:
+            return ""
+        return str(text)
+
+    def _response_metadata(self, response) -> dict:
+        """Return JSON-friendly metadata from an LLMResponse-like object."""
+
+        if not hasattr(response, "text"):
+            return {}
+
+        metadata = {}
+        for name in ("provider", "model", "finish_reason"):
+            value = getattr(response, name, None)
+            if value is not None:
+                metadata[name] = value
+
+        usage = getattr(response, "usage", None)
+        if usage is not None:
+            if is_dataclass(usage):
+                usage_data = asdict(usage)
+            elif isinstance(usage, dict):
+                usage_data = dict(usage)
+            else:
+                usage_data = {
+                    name: getattr(usage, name)
+                    for name in ("input_tokens", "output_tokens", "total_tokens")
+                    if hasattr(usage, name)
+                }
+            if usage_data:
+                metadata["usage"] = usage_data
+
+        extra = getattr(response, "metadata", None)
+        if isinstance(extra, dict):
+            metadata.update(extra)
+
+        raw = getattr(response, "raw", None)
+        if isinstance(raw, dict) and raw:
+            metadata["raw"] = raw
+
+        return metadata
+
     def fingerprint_model(self, model_name, repeats=1,
                           progress_callback=None,
                           max_errors=10,
@@ -168,9 +214,15 @@ class LLMFingerprinter:
                         if prompt_item.system is not None:
                             generate_kwargs["system"] = prompt_item.system
 
-                        response = self.client.generate(
-                            **generate_kwargs
+                        generate_response = getattr(
+                            self.client,
+                            "generate_response",
+                            None,
                         )
+                        if callable(generate_response):
+                            response = generate_response(**generate_kwargs)
+                        else:
+                            response = self.client.generate(**generate_kwargs)
                         layer_pairs.append((prompt_item, response))
                         query_count += 1
                         consecutive_errors = 0
@@ -211,7 +263,8 @@ class LLMFingerprinter:
                 ):
                     all_responses.append({
                         'prompt': prompt_item.text,
-                        'response': response,
+                        'response': self._response_text(response),
+                        'response_metadata': self._response_metadata(response),
                         'layer': prompt_item.layer,
                         'category': prompt_item.category,
                         'feature_metadata': feature_vector.metadata,

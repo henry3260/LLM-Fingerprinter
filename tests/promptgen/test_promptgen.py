@@ -2,6 +2,7 @@ import numpy as np
 
 from llm_fingerprinter import config
 from llm_fingerprinter.contracts.feature import Feature, FeatureVector
+from llm_fingerprinter.contracts.llm import LLMResponse, TokenUsage
 from llm_fingerprinter.fingerprinter import LLMFingerprinter
 from llm_fingerprinter.promptgen import PromptItem, PromptPackage
 
@@ -31,10 +32,30 @@ class _Client:
     def __init__(self):
         self.calls = []
 
-    def generate(self, **kwargs):
+    def generate_response(self, **kwargs):
         self.calls.append(kwargs)
         system = kwargs.get("system") or ""
-        return f"response:{kwargs['prompt']}:{system}"
+        return LLMResponse(
+            provider="test-provider",
+            model=kwargs["model"],
+            text=f"response:{kwargs['prompt']}:{system}",
+            finish_reason="stop",
+            usage=TokenUsage(
+                input_tokens=len(kwargs["prompt"]),
+                output_tokens=3,
+                total_tokens=len(kwargs["prompt"]) + 3,
+            ),
+            raw={
+                "id": f"response-{len(self.calls)}",
+                "provider_payload": {
+                    "prompt": kwargs["prompt"],
+                    "model": kwargs["model"],
+                },
+            },
+        )
+
+    def generate(self, **kwargs):
+        raise AssertionError("fingerprint_model should use generate_response")
 
 
 class _Extractor:
@@ -88,9 +109,13 @@ def test_fingerprint_model_consumes_prompt_package(monkeypatch):
     assert client.calls[0]["system"] == "sys-a"
     assert "system" not in client.calls[1]
     assert [call["temperature"] for call in client.calls] == [0.25, 0.25]
-    assert extractor.pairs == [
-        ("alpha prompt", "response:alpha prompt:sys-a"),
-        ("beta prompt", "response:beta prompt:"),
+    assert [prompt for prompt, _ in extractor.pairs] == [
+        "alpha prompt",
+        "beta prompt",
+    ]
+    assert [response.text for _, response in extractor.pairs] == [
+        "response:alpha prompt:sys-a",
+        "response:beta prompt:",
     ]
     assert fingerprint["metadata"]["queries_executed"] == 2
     assert fingerprint["metadata"]["queries_total"] == 2
@@ -98,6 +123,23 @@ def test_fingerprint_model_consumes_prompt_package(monkeypatch):
         {
             "prompt": "alpha prompt",
             "response": "response:alpha prompt:sys-a",
+            "response_metadata": {
+                "provider": "test-provider",
+                "model": "model-a",
+                "finish_reason": "stop",
+                "usage": {
+                    "input_tokens": 12,
+                    "output_tokens": 3,
+                    "total_tokens": 15,
+                },
+                "raw": {
+                    "id": "response-1",
+                    "provider_payload": {
+                        "prompt": "alpha prompt",
+                        "model": "model-a",
+                    },
+                },
+            },
             "layer": "alpha",
             "category": "cat-a",
             "feature_metadata": {"pair_index": 0},
@@ -105,6 +147,23 @@ def test_fingerprint_model_consumes_prompt_package(monkeypatch):
         {
             "prompt": "beta prompt",
             "response": "response:beta prompt:",
+            "response_metadata": {
+                "provider": "test-provider",
+                "model": "model-a",
+                "finish_reason": "stop",
+                "usage": {
+                    "input_tokens": 11,
+                    "output_tokens": 3,
+                    "total_tokens": 14,
+                },
+                "raw": {
+                    "id": "response-2",
+                    "provider_payload": {
+                        "prompt": "beta prompt",
+                        "model": "model-a",
+                    },
+                },
+            },
             "layer": "beta",
             "category": "cat-b",
             "feature_metadata": {"pair_index": 0},
