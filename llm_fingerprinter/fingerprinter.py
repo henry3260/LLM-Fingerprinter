@@ -199,15 +199,22 @@ class LLMFingerprinter:
 
             # ── Phase 2: batch-extract features (single embedding forward pass)
             if layer_pairs:
-                features_batch = self.extractor.extract_batch(
+                feature_vectors = self.extractor.extract_batch_vectors(
                     [(prompt_item.text, response) for prompt_item, response in layer_pairs]
                 )
-                for (prompt_item, response), features in zip(layer_pairs, features_batch):
+                features_batch = [
+                    self.extractor.feature_vector_to_array(feature_vector)
+                    for feature_vector in feature_vectors
+                ]
+                for (prompt_item, response), feature_vector, features in zip(
+                    layer_pairs, feature_vectors, features_batch
+                ):
                     all_responses.append({
                         'prompt': prompt_item.text,
                         'response': response,
                         'layer': prompt_item.layer,
                         'category': prompt_item.category,
+                        'feature_metadata': feature_vector.metadata,
                     })
                     layer_features[layer_name].append(features)
 
