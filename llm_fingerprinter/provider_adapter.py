@@ -45,7 +45,7 @@ class ProviderClientAdapter:
         system: Optional[str] = None,
         top_p: Optional[float] = None,
         **_: object,
-    ) -> str:
+    ) -> LLMRequest:
         messages = []
         if system:
             messages.append(Message(role="system", content=system))
