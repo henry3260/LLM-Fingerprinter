@@ -135,6 +135,10 @@ class LLMFingerprinter:
         if isinstance(extra, dict):
             metadata.update(extra)
 
+        raw = getattr(response, "raw", None)
+        if isinstance(raw, dict) and raw:
+            metadata["raw"] = raw
+
         return metadata
 
     def fingerprint_model(self, model_name, repeats=1,

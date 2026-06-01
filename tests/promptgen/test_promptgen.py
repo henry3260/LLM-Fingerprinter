@@ -45,6 +45,13 @@ class _Client:
                 output_tokens=3,
                 total_tokens=len(kwargs["prompt"]) + 3,
             ),
+            raw={
+                "id": f"response-{len(self.calls)}",
+                "provider_payload": {
+                    "prompt": kwargs["prompt"],
+                    "model": kwargs["model"],
+                },
+            },
         )
 
     def generate(self, **kwargs):
@@ -125,6 +132,13 @@ def test_fingerprint_model_consumes_prompt_package(monkeypatch):
                     "output_tokens": 3,
                     "total_tokens": 15,
                 },
+                "raw": {
+                    "id": "response-1",
+                    "provider_payload": {
+                        "prompt": "alpha prompt",
+                        "model": "model-a",
+                    },
+                },
             },
             "layer": "alpha",
             "category": "cat-a",
@@ -141,6 +155,13 @@ def test_fingerprint_model_consumes_prompt_package(monkeypatch):
                     "input_tokens": 11,
                     "output_tokens": 3,
                     "total_tokens": 14,
+                },
+                "raw": {
+                    "id": "response-2",
+                    "provider_payload": {
+                        "prompt": "beta prompt",
+                        "model": "model-a",
+                    },
                 },
             },
             "layer": "beta",
