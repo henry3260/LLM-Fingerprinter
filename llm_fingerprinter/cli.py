@@ -24,8 +24,9 @@ from llm_fingerprinter.fingerprinter import LLMFingerprinter
 from llm_fingerprinter.fingerprint_store import FingerprintStore
 from llm_fingerprinter.template_classifier import TemplateClassifier
 from llm_fingerprinter.plotting import FingerprintPlotError, plot_fingerprint_projection
-from llm_fingerprinter.provider_adapter import ProviderClientAdapter
+from llm_fingerprinter.contracts.llm import LLMRequest, Message
 from llm_fingerprinter.providers import create_provider
+from llm_fingerprinter.providers.base import BaseProvider
 from llm_fingerprinter import config
 
 @dataclass(frozen=True)
@@ -137,7 +138,44 @@ def get_api_client(backend, endpoint, api_key = None, request_file = None):
 
     provider_name = spec.provider_name or backend
     provider = create_provider(provider_name, **kwargs)
-    return ProviderClientAdapter(provider, provider_name=backend)
+    return provider
+
+
+def check_api_client(client) -> bool:
+    check_connectivity = getattr(client, "_check_connectivity", None)
+    if callable(check_connectivity):
+        return check_connectivity()
+
+    health_check = getattr(client, "health_check", None)
+    if callable(health_check):
+        return health_check()
+
+    raise click.ClickException("Backend client does not expose a connectivity check")
+
+
+def generate_api_text(
+    client,
+    backend: str,
+    model: str | None,
+    prompt: str,
+    max_tokens: int = 100,
+    temperature: float | None = None,
+) -> str:
+    if isinstance(client, BaseProvider):
+        request = LLMRequest(
+            provider=getattr(client, "name", backend),
+            model=model or "",
+            messages=[Message(role="user", content=prompt)],
+            temperature=temperature if temperature is not None else config.TEMPERATURE,
+            max_tokens=max_tokens,
+        )
+        return client.generate(request).text
+
+    return client.generate(
+        prompt=prompt,
+        model=model,
+        max_tokens=max_tokens,
+    )
 
 
 def create_feature_extractor():
@@ -335,7 +373,7 @@ def identify(ctx, backend, endpoint, api_key, request_file, model, repeats, earl
 
     try:
         client = get_api_client(backend, endpoint, api_key, request_file)
-        if not client._check_connectivity():
+        if not check_api_client(client):
             click.echo(click.style(f"❌ Cannot connect to API", fg='red'))
             sys.exit(1)
         click.echo("✅ Connected")
@@ -461,7 +499,7 @@ def simulate(ctx, backend, endpoint, api_key, request_file, model, family, num_s
 
     try:
         client = get_api_client(backend, endpoint, api_key, request_file)
-        if not client._check_connectivity():
+        if not check_api_client(client):
             click.echo(click.style(f"❌ Cannot connect to API", fg='red'))
             sys.exit(1)
         click.echo("✅ Connected")
@@ -645,7 +683,7 @@ def list_models(ctx, backend, endpoint, api_key, request_file):
 
     try:
         client = get_api_client(backend, endpoint, api_key, request_file)
-        if not client._check_connectivity():
+        if not check_api_client(client):
             click.echo(click.style(f"❌ Cannot reach {backend}", fg='red'))
             sys.exit(1)
 
@@ -877,7 +915,7 @@ def test(ctx, backend, endpoint, api_key, request_file, model, prompt):
         client = get_api_client(backend, endpoint, api_key, request_file)
         
         click.echo(f"\n🔍 Checking connectivity...")
-        if not client._check_connectivity():
+        if not check_api_client(client):
             click.echo(click.style(f"❌ Cannot connect to API", fg='red'))
             sys.exit(1)
         click.echo("✅ Connected")
@@ -885,7 +923,13 @@ def test(ctx, backend, endpoint, api_key, request_file, model, prompt):
         click.echo(f"\n💬 Testing generation...")
         click.echo(f"   Prompt: {prompt[:50]}{'...' if len(prompt) > 50 else ''}")
         
-        response = client.generate(prompt=prompt, model=model, max_tokens=100)
+        response = generate_api_text(
+            client=client,
+            backend=backend,
+            model=model,
+            prompt=prompt,
+            max_tokens=100,
+        )
         
         click.echo(f"\n📝 Response:")
         click.echo(f"   {response[:200]}{'...' if len(response) > 200 else ''}")
@@ -926,7 +970,7 @@ def fingerprint(ctx, backend, endpoint, api_key, request_file, model, repeats, o
 
     try:
         client = get_api_client(backend, endpoint, api_key, request_file)
-        if not client._check_connectivity():
+        if not check_api_client(client):
             click.echo(click.style(f"❌ Cannot connect to API", fg='red'))
             sys.exit(1)
         click.echo("✅ Connected")
@@ -1132,7 +1176,7 @@ def add_family(ctx, backend, endpoint, api_key, request_file,
 
     try:
         client = get_api_client(backend, endpoint, api_key, request_file)
-        if not client._check_connectivity():
+        if not check_api_client(client):
             click.echo(click.style("❌ Cannot connect to API", fg='red'))
             sys.exit(1)
         click.echo("✅ Connected")
