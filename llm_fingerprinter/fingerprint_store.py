@@ -24,6 +24,8 @@ class FingerprintStore:
             return float(value)
         elif isinstance(value, np.integer):
             return int(value)
+        elif isinstance(value, np.bool_):
+            return bool(value)
         elif isinstance(value, dict):
             return {k: self._serialize_value(v) for k, v in value.items()}
         elif isinstance(value, (list, tuple)):
@@ -42,6 +44,9 @@ class FingerprintStore:
             "vector": self._serialize_value(fingerprint.get("vector", [])),
             "raw_features": self._serialize_value(fingerprint.get("raw_features", {})),
             "metadata": self._serialize_value(fingerprint.get("metadata", {})),
+            "responses_sample": self._serialize_value(
+                fingerprint.get("responses_sample", [])
+            ),
         }
 
         # Create safe filename (remove special characters)
