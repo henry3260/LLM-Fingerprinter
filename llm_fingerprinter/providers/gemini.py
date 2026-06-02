@@ -23,6 +23,11 @@ class GeminiProvider(BaseProvider):
         self._timeout = timeout
         self._max_retries = max_retries
 
+    @staticmethod
+    def _usage_count(usage, field: str) -> int:
+        value = getattr(usage, field, 0) if usage else 0
+        return int(value or 0)
+
     def generate(self, request: LLMRequest) -> LLMResponse:
         validate_request(self.name, request)
 
@@ -41,8 +46,8 @@ class GeminiProvider(BaseProvider):
         response = self._client.models.generate_content(model=request.model, contents=prompt, config=config)
 
         usage = getattr(response, "usage_metadata", None)
-        output_tokens = getattr(usage, "candidates_token_count", 0) if usage else 0
-        input_tokens = getattr(usage, "prompt_token_count", 0) if usage else 0
+        output_tokens = self._usage_count(usage, "candidates_token_count")
+        input_tokens = self._usage_count(usage, "prompt_token_count")
         total_tokens = input_tokens + output_tokens
 
         return LLMResponse(
@@ -60,14 +65,41 @@ class GeminiProvider(BaseProvider):
         except Exception:
             return False
 
+    @staticmethod
+    def _model_name(model) -> str:
+        raw_name = getattr(model, "name", "") or ""
+        if not raw_name and hasattr(model, "model_dump"):
+            data = model.model_dump()
+            raw_name = data.get("name", "") or data.get("model", "")
+        return raw_name[7:] if raw_name.startswith("models/") else raw_name
+
+    @staticmethod
+    def _supported_generation_methods(model) -> list[str] | None:
+        methods = getattr(model, "supported_generation_methods", None)
+        if methods is None and hasattr(model, "model_dump"):
+            data = model.model_dump()
+            methods = (
+                data.get("supported_generation_methods")
+                or data.get("supportedGenerationMethods")
+            )
+        return list(methods) if methods is not None else None
+
     def list_models(self) -> list[str]:
         try:
             models = []
             for model in self._client.models.list():
-                name = model.name[7:] if model.name.startswith("models/") else model.name
-                methods = getattr(model, "supported_generation_methods", [])
+                name = self._model_name(model)
+                if not name:
+                    continue
+
+                methods = self._supported_generation_methods(model)
+                if methods is None:
+                    if name.startswith("gemini-"):
+                        models.append(name)
+                    continue
+
                 if "generateContent" in methods:
                     models.append(name)
-            return sorted(models)
+            return sorted(set(models))
         except Exception:
             return []
