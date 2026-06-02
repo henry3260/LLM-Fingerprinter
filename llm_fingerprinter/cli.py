@@ -171,11 +171,16 @@ def generate_api_text(
         )
         return client.generate(request).text
 
-    return client.generate(
+    response = client.generate(
         prompt=prompt,
         model=model,
         max_tokens=max_tokens,
+        temperature=temperature if temperature is not None else config.TEMPERATURE,
     )
+    text = getattr(response, "text", response)
+    if text is None:
+        return ""
+    return str(text)
 
 
 def create_feature_extractor():

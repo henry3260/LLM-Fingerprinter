@@ -83,6 +83,19 @@ class _Extractor:
         ]
 
 
+class _LegacyClient:
+    def __init__(self):
+        self.calls = []
+
+    def generate(self, **kwargs):
+        self.calls.append(kwargs)
+        return LLMResponse(
+            provider="legacy",
+            model=kwargs["model"],
+            text=f"legacy:{kwargs['prompt']}",
+        )
+
+
 def test_fingerprint_model_uses_base_provider_contract(monkeypatch):
     monkeypatch.setattr(config, "LAYER_ORDER", ["alpha"])
     provider = _DirectProvider()
@@ -151,3 +164,40 @@ def test_cli_provider_helpers_use_base_provider_directly(monkeypatch):
     assert request.provider == "direct-provider"
     assert request.max_tokens == 12
     assert request.temperature == 0.2
+
+
+def test_cli_generate_api_text_normalizes_legacy_response_and_temperature():
+    client = _LegacyClient()
+
+    explicit = cli_mod.generate_api_text(
+        client=client,
+        backend="legacy",
+        model="model-a",
+        prompt="hello",
+        max_tokens=12,
+        temperature=0.2,
+    )
+    fallback = cli_mod.generate_api_text(
+        client=client,
+        backend="legacy",
+        model="model-a",
+        prompt="fallback",
+        max_tokens=8,
+    )
+
+    assert explicit == "legacy:hello"
+    assert fallback == "legacy:fallback"
+    assert client.calls == [
+        {
+            "prompt": "hello",
+            "model": "model-a",
+            "max_tokens": 12,
+            "temperature": 0.2,
+        },
+        {
+            "prompt": "fallback",
+            "model": "model-a",
+            "max_tokens": 8,
+            "temperature": config.TEMPERATURE,
+        },
+    ]
