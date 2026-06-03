@@ -5,7 +5,9 @@ from dataclasses import asdict, is_dataclass
 from datetime import datetime
 
 from llm_fingerprinter import config
+from llm_fingerprinter.contracts.llm import LLMRequest, Message
 from llm_fingerprinter.promptgen import PromptItem
+from llm_fingerprinter.providers.base import BaseProvider
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +20,7 @@ class LLMFingerprinter:
 
         Args:
             endpoint:         API endpoint URL
-            ollama_client:    Client instance (OllamaClient, OpenAIClient, etc.)
+            ollama_client:    Provider or legacy client instance
             prompt_suite:     PromptSuite instance
             feature_extractor: FeatureExtractor instance
             classifier:       EnsembleClassifier instance
@@ -141,6 +143,61 @@ class LLMFingerprinter:
 
         return metadata
 
+    def _build_llm_request(
+        self,
+        model_name,
+        prompt_item: PromptItem,
+        temperature: float,
+        max_tokens: int = 512,
+    ) -> LLMRequest:
+        """Build the normalized provider request used by contract-native clients."""
+
+        messages = []
+        if prompt_item.system is not None:
+            messages.append(Message(role="system", content=prompt_item.system))
+        messages.append(Message(role="user", content=prompt_item.text))
+
+        provider_name = getattr(self.client, "name", None) or self.endpoint
+        return LLMRequest(
+            provider=provider_name,
+            model=model_name or "",
+            messages=messages,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+
+    def _generate_response(
+        self,
+        model_name,
+        prompt_item: PromptItem,
+        temperature: float,
+        max_tokens: int = 512,
+    ):
+        """Generate one response through BaseProvider or legacy client APIs."""
+
+        if isinstance(self.client, BaseProvider):
+            request = self._build_llm_request(
+                model_name=model_name,
+                prompt_item=prompt_item,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            return self.client.generate(request)
+
+        generate_kwargs = {
+            "model": model_name,
+            "prompt": prompt_item.text,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        if prompt_item.system is not None:
+            generate_kwargs["system"] = prompt_item.system
+
+        generate_response = getattr(self.client, "generate_response", None)
+        if callable(generate_response):
+            return generate_response(**generate_kwargs)
+        return self.client.generate(**generate_kwargs)
+
     def fingerprint_model(self, model_name, repeats=1,
                           progress_callback=None,
                           max_errors=10,
@@ -202,27 +259,14 @@ class LLMFingerprinter:
             # ── Phase 1: collect API responses (sequential) ───────────────────
             layer_pairs = []   # (prompt_item, response)
             for prompt_item in layer_prompts:
-                prompt = prompt_item.text
                 for rep in range(repeats):
                     try:
-                        generate_kwargs = {
-                            "model": model_name,
-                            "prompt": prompt,
-                            "temperature": temperature,
-                            "max_tokens": 512,
-                        }
-                        if prompt_item.system is not None:
-                            generate_kwargs["system"] = prompt_item.system
-
-                        generate_response = getattr(
-                            self.client,
-                            "generate_response",
-                            None,
+                        response = self._generate_response(
+                            model_name=model_name,
+                            prompt_item=prompt_item,
+                            temperature=temperature,
+                            max_tokens=512,
                         )
-                        if callable(generate_response):
-                            response = generate_response(**generate_kwargs)
-                        else:
-                            response = self.client.generate(**generate_kwargs)
                         layer_pairs.append((prompt_item, response))
                         query_count += 1
                         consecutive_errors = 0
