@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from llm_fingerprinter.providers.base import BaseProvider
+from llm_fingerprinter.providers.claude import ClaudeProvider
 from llm_fingerprinter.providers.custom import CustomProvider
 from llm_fingerprinter.providers.deepseek import DeepSeekProvider
 from llm_fingerprinter.providers.gemini import GeminiProvider
@@ -16,6 +17,8 @@ def create_provider(provider: str, **kwargs) -> BaseProvider:
     provider_key = provider.strip().lower()
     if provider_key == "grok":
         return GrokProvider(**kwargs)
+    if provider_key == "claude":
+        return ClaudeProvider(**kwargs)
     if provider_key == "openai":
         return OpenAIProvider(**kwargs)
     if provider_key == "deepseek":
