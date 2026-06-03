@@ -70,6 +70,11 @@ BACKEND_SPECS: dict[str, BackendSpec] = {
         requires_api_key=True,
         key_missing_message="Grok API key required. Set GROK_API_KEY or use --api-key",
     ),
+    "claude": BackendSpec(
+        default_endpoint=config.CLAUDE_DEFAULT_ENDPOINT,
+        requires_api_key=True,
+        key_missing_message="Claude API key required. Set ANTHROPIC_API_KEY or use --api-key",
+    ),
     "custom": BackendSpec(
         default_endpoint=config.CUSTOM_DEFAULT_ENDPOINT,
         requires_request_file=True,
@@ -93,6 +98,8 @@ def setup_logging(verbose: bool = False):
     logging.getLogger('sentence_transformers').setLevel(logging.WARNING)
     logging.getLogger('httpx').setLevel(logging.WARNING)
     logging.getLogger('openai').setLevel(logging.WARNING)
+    logging.getLogger('google_genai').setLevel(logging.WARNING)
+    logging.getLogger('google_genai.models').setLevel(logging.WARNING)
     return logging.getLogger(__name__)
 
 
@@ -300,7 +307,7 @@ def print_report(result: dict):
 def backend_options(f):
     """Common backend options for all LLM commands."""
     f = click.option('--backend', '-b', 
-                     type=click.Choice(['ollama', 'ollama-cloud', 'openai', 'custom', 'gemini', 'deepseek', 'grok']), 
+                     type=click.Choice(['ollama', 'ollama-cloud', 'openai', 'custom', 'gemini', 'deepseek', 'grok', 'claude']),
                      default=config.DEFAULT_BACKEND, help='API backend')(f)
     f = click.option('--endpoint', '-e', default=None, help='API endpoint URL')(f)
     f = click.option('--api-key', '-k', default=None, help='API key')(f)

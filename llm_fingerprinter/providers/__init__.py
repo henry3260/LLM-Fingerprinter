@@ -1,6 +1,7 @@
 """Provider package with normalized provider interfaces and implementations."""
 
 from .base import BaseProvider, ProviderCapabilities
+from .claude import ClaudeProvider
 from .cloud_client import CloudProvider
 from .custom import CustomProvider
 from .deepseek import DeepSeekProvider
@@ -13,6 +14,7 @@ from .registry import create_provider
 __all__ = [
     "BaseProvider",
     "ProviderCapabilities",
+    "ClaudeProvider",
     "GrokProvider",
     "OpenAIProvider",
     "OllamaProvider",
