@@ -45,6 +45,7 @@ Fingerprinting runs in three sequential layers:
 | `gemini` | Gemini API | ✅ `GEMINI_API_KEY` |
 | `deepseek` | DeepSeek API | ✅ `DEEPSEEK_API_KEY` |
 | `grok` | xAI Grok API | ✅ `GROK_API_KEY` |
+| `claude` | Anthropic Claude API | ✅ `ANTHROPIC_API_KEY` |
 | `custom` | **Any HTTP-based LLM API** | ✅ Optional |
 
 ### About the Custom Backend
@@ -74,6 +75,9 @@ pip install llm-fingerprinter[openai]
 
 # With Gemini support
 pip install llm-fingerprinter[gemini]
+
+# With Claude support
+pip install llm-fingerprinter[claude]
 
 # With all backends
 pip install llm-fingerprinter[all]
@@ -178,6 +182,7 @@ Recommended minimum: 3 simulations for a reliable mean template.
 | `GEMINI_API_KEY` | gemini | Gemini API key |
 | `DEEPSEEK_API_KEY` | deepseek | DeepSeek API key |
 | `GROK_API_KEY` | grok | xAI Grok API key |
+| `ANTHROPIC_API_KEY` | claude | Anthropic Claude API key |
 | `LOG_LEVEL` | all | Logging level (`DEBUG`, `INFO`, `WARNING`) |
 | `LLM_FINGERPRINTER_DATA` | all | Override data directory (fingerprints, model, logs) |
 

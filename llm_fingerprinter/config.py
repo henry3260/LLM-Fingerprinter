@@ -23,7 +23,8 @@ MODEL_FAMILIES = {
     "llama": 2,
     "gemini": 3,
     "mistral": 4,
-    "grok": 5
+    "grok": 5,
+    "claude": 6,
 }
 
 
@@ -150,7 +151,12 @@ GROK_DEFAULT_ENDPOINT = "https://api.x.ai/v1"
 GROK_TIMEOUT = 60
 GROK_MAX_RETRIES = 3
 
-# API Backend options: 'ollama', 'ollama-cloud', 'openai', 'deepseek', 'gemini', 'custom'
+# Claude client settings
+CLAUDE_DEFAULT_ENDPOINT = "https://api.anthropic.com"
+CLAUDE_TIMEOUT = 60
+CLAUDE_MAX_RETRIES = 3
+
+# API Backend options: 'ollama', 'ollama-cloud', 'openai', 'deepseek', 'gemini', 'grok', 'claude', 'custom'
 DEFAULT_BACKEND = "custom"
 
 CUSTOM_DEFAULT_ENDPOINT = "http://localhost:8000/v1"
@@ -163,4 +169,5 @@ API_KEY_ENV_VARS = {
     "deepseek": "DEEPSEEK_API_KEY",
     "gemini": "GEMINI_API_KEY",
     "grok": "GROK_API_KEY",
+    "claude": "ANTHROPIC_API_KEY",
 }

@@ -42,9 +42,11 @@ dependencies = [
 [project.optional-dependencies]
 openai = ["openai>=1.0.0"]
 gemini = ["google-genai>=0.1.0"]
+claude = ["anthropic>=0.45.0"]
 all = [
     "openai>=1.0.0",
     "google-genai>=0.1.0",
+    "anthropic>=0.45.0",
     "httpx>=0.24.0",
 ]
 dev = [
