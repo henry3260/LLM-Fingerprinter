@@ -184,6 +184,12 @@ Recommended minimum: 3 simulations for a reliable mean template.
 
 ---
 
+## Acknowledgements
+
+This project references [litemars/LLM-Fingerprinter](https://github.com/litemars/LLM-Fingerprinter).
+
+---
+
 ## License
 
 MIT License
