@@ -24,6 +24,10 @@ def test_save_fingerprint_persists_response_metadata(tmp_path):
                         "output_tokens": np.int64(4),
                         "total_tokens": np.int64(7),
                     },
+                    "raw": {
+                        "utf8_bytes": b"hello",
+                        "binary_bytes": b"\xff\x00",
+                    },
                 },
                 "feature_metadata": {
                     "embedding_dim": np.int64(384),
@@ -48,6 +52,16 @@ def test_save_fingerprint_persists_response_metadata(tmp_path):
                     "input_tokens": 3,
                     "output_tokens": 4,
                     "total_tokens": 7,
+                },
+                "raw": {
+                    "utf8_bytes": {
+                        "__type__": "bytes",
+                        "base64": "aGVsbG8=",
+                    },
+                    "binary_bytes": {
+                        "__type__": "bytes",
+                        "base64": "/wA=",
+                    },
                 },
             },
             "feature_metadata": {

@@ -1,5 +1,6 @@
 import json
 import logging
+from base64 import b64encode
 from pathlib import Path
 from datetime import datetime
 from typing import Dict
@@ -26,6 +27,11 @@ class FingerprintStore:
             return int(value)
         elif isinstance(value, np.bool_):
             return bool(value)
+        elif isinstance(value, (bytes, bytearray, memoryview)):
+            return {
+                "__type__": "bytes",
+                "base64": b64encode(bytes(value)).decode("ascii"),
+            }
         elif isinstance(value, dict):
             return {k: self._serialize_value(v) for k, v in value.items()}
         elif isinstance(value, (list, tuple)):
