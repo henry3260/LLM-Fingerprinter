@@ -610,8 +610,8 @@ class EnsembleClassifier:
         from sklearn.model_selection import StratifiedKFold
         from sklearn.metrics import precision_recall_fscore_support, confusion_matrix
 
-        unique_classes = np.unique(y)
-        actual_folds = min(n_folds, min(np.bincount(y.astype(int))))
+        _, class_counts = np.unique(y, return_counts=True)
+        actual_folds = min(n_folds, int(class_counts.min()))
         if actual_folds < 2:
             logger.warning("Not enough samples per class for cross-validation")
             return None
