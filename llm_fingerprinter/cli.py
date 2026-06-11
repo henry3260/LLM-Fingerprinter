@@ -23,7 +23,6 @@ from llm_fingerprinter.classifier import EnsembleClassifier, create_classifier
 from llm_fingerprinter.fingerprinter import LLMFingerprinter
 from llm_fingerprinter.fingerprint_store import FingerprintStore
 from llm_fingerprinter.template_classifier import TemplateClassifier
-from llm_fingerprinter.training_data import balance_grouped_samples
 from llm_fingerprinter.plotting import FingerprintPlotError, plot_fingerprint_projection
 from llm_fingerprinter.contracts.llm import LLMRequest, Message
 from llm_fingerprinter.providers import create_provider
@@ -575,13 +574,8 @@ def simulate(ctx, backend, endpoint, api_key, request_file, model, family, num_s
               help='Run k-fold cross-validation before training')
 @click.option('--cv-folds', default=5, type=int,
               help='Number of cross-validation folds (default: 5)')
-@click.option('--balance/--no-balance', default=True, show_default=True,
-              help='Downsample each family to the same number of fingerprints.')
-@click.option('--balance-seed', default=42, type=int, show_default=True,
-              help='Random seed used for reproducible family balancing.')
 @click.pass_context
-def train(ctx, augment, use_pca, pca_components, cross_validate, cv_folds,
-          balance, balance_seed):
+def train(ctx, augment, use_pca, pca_components, cross_validate, cv_folds):
     """Train classifier from saved fingerprints.
 
     \b
@@ -611,24 +605,6 @@ def train(ctx, augment, use_pca, pca_components, cross_validate, cv_folds,
             click.echo(click.style("❌ No fingerprints found", fg='red'))
             click.echo("   Run 'simulate' first")
             sys.exit(1)
-
-        if balance:
-            original_counts = {
-                family: len(vectors)
-                for family, vectors in training_data.items()
-                if vectors
-            }
-            training_data, target_count = balance_grouped_samples(
-                training_data, seed=balance_seed
-            )
-            click.echo(
-                f"\nBalanced each family to {target_count} samples "
-                f"(seed={balance_seed}):"
-            )
-            for family, vectors in sorted(training_data.items()):
-                click.echo(
-                    f"    {family}: {original_counts[family]} -> {len(vectors)}"
-                )
 
         click.echo("\n📊 Training data:")
         total = 0
@@ -1045,12 +1021,8 @@ def fingerprint(ctx, backend, endpoint, api_key, request_file, model, repeats, o
 @cli.command('build-templates')
 @click.option('--ood-ratio', default=0.80, type=float, show_default=True,
               help='OOD ratio threshold (lower = stricter OOD detection).')
-@click.option('--balance/--no-balance', default=True, show_default=True,
-              help='Downsample each family to the same number of fingerprints.')
-@click.option('--balance-seed', default=42, type=int, show_default=True,
-              help='Random seed used for reproducible family balancing.')
 @click.pass_context
-def build_templates(ctx, ood_ratio, balance, balance_seed):
+def build_templates(ctx, ood_ratio):
     """Build open-set template classifier from training fingerprints.
 
     Templates let you classify new families without retraining the ensemble —
@@ -1077,24 +1049,6 @@ def build_templates(ctx, ood_ratio, balance, balance_seed):
             click.echo(click.style("❌ No fingerprints found", fg='red'))
             click.echo("   Run 'simulate' first")
             sys.exit(1)
-
-        if balance:
-            original_counts = {
-                family: len(vectors)
-                for family, vectors in training_data.items()
-                if vectors
-            }
-            training_data, target_count = balance_grouped_samples(
-                training_data, seed=balance_seed
-            )
-            click.echo(
-                f"\nBalanced each family to {target_count} samples "
-                f"(seed={balance_seed}):"
-            )
-            for family, vectors in sorted(training_data.items()):
-                click.echo(
-                    f"   {family:12s} {original_counts[family]} -> {len(vectors)}"
-                )
 
         click.echo("\n📊 Training data:")
         for fam, vecs in sorted(training_data.items()):
