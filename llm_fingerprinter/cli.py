@@ -23,6 +23,7 @@ from llm_fingerprinter.classifier import EnsembleClassifier, create_classifier
 from llm_fingerprinter.fingerprinter import LLMFingerprinter
 from llm_fingerprinter.fingerprint_store import FingerprintStore
 from llm_fingerprinter.template_classifier import TemplateClassifier
+from llm_fingerprinter.training_data import balance_grouped_samples
 from llm_fingerprinter.plotting import FingerprintPlotError, plot_fingerprint_projection
 from llm_fingerprinter.contracts.llm import LLMRequest, Message
 from llm_fingerprinter.providers import create_provider
@@ -574,8 +575,13 @@ def simulate(ctx, backend, endpoint, api_key, request_file, model, family, num_s
               help='Run k-fold cross-validation before training')
 @click.option('--cv-folds', default=5, type=int,
               help='Number of cross-validation folds (default: 5)')
+@click.option('--balance/--no-balance', default=True, show_default=True,
+              help='Downsample each family to the same number of fingerprints.')
+@click.option('--balance-seed', default=42, type=int, show_default=True,
+              help='Random seed used for reproducible family balancing.')
 @click.pass_context
-def train(ctx, augment, use_pca, pca_components, cross_validate, cv_folds):
+def train(ctx, augment, use_pca, pca_components, cross_validate, cv_folds,
+          balance, balance_seed):
     """Train classifier from saved fingerprints.
 
     \b
@@ -605,6 +611,54 @@ def train(ctx, augment, use_pca, pca_components, cross_validate, cv_folds):
             click.echo(click.style("❌ No fingerprints found", fg='red'))
             click.echo("   Run 'simulate' first")
             sys.exit(1)
+
+        unsupported_families = sorted(
+            family for family in training_data
+            if family not in config.MODEL_FAMILIES
+        )
+        if unsupported_families:
+            click.echo(click.style(
+                "\n⚠️ Ignoring unsupported families before training: "
+                + ", ".join(unsupported_families),
+                fg='yellow',
+            ))
+            training_data = {
+                family: vectors
+                for family, vectors in training_data.items()
+                if family in config.MODEL_FAMILIES
+            }
+
+        if not training_data:
+            click.echo(click.style("❌ No supported-family fingerprints found", fg='red'))
+            click.echo("   Add the family to MODEL_FAMILIES or collect supported data")
+            sys.exit(1)
+
+        if balance:
+            original_counts = {
+                family: len(vectors)
+                for family, vectors in training_data.items()
+                if vectors
+            }
+            training_data, target_count = balance_grouped_samples(
+                training_data,
+                seed=balance_seed,
+                minimum_target_count=2,
+            )
+            if target_count < 2:
+                click.echo(click.style(
+                    "\n⚠️ Skipped balancing because the smallest supported "
+                    f"family has only {target_count} sample(s).",
+                    fg='yellow',
+                ))
+            else:
+                click.echo(
+                    f"\nBalanced each family to {target_count} samples "
+                    f"(seed={balance_seed}):"
+                )
+                for family, vectors in sorted(training_data.items()):
+                    click.echo(
+                        f"    {family}: {original_counts[family]} -> {len(vectors)}"
+                    )
 
         click.echo("\n📊 Training data:")
         total = 0
@@ -1021,8 +1075,12 @@ def fingerprint(ctx, backend, endpoint, api_key, request_file, model, repeats, o
 @cli.command('build-templates')
 @click.option('--ood-ratio', default=0.80, type=float, show_default=True,
               help='OOD ratio threshold (lower = stricter OOD detection).')
+@click.option('--balance/--no-balance', default=True, show_default=True,
+              help='Downsample each family to the same number of fingerprints.')
+@click.option('--balance-seed', default=42, type=int, show_default=True,
+              help='Random seed used for reproducible family balancing.')
 @click.pass_context
-def build_templates(ctx, ood_ratio):
+def build_templates(ctx, ood_ratio, balance, balance_seed):
     """Build open-set template classifier from training fingerprints.
 
     Templates let you classify new families without retraining the ensemble —
@@ -1049,6 +1107,34 @@ def build_templates(ctx, ood_ratio):
             click.echo(click.style("❌ No fingerprints found", fg='red'))
             click.echo("   Run 'simulate' first")
             sys.exit(1)
+
+        if balance:
+            original_counts = {
+                family: len(vectors)
+                for family, vectors in training_data.items()
+                if vectors
+            }
+            training_data, target_count = balance_grouped_samples(
+                training_data,
+                seed=balance_seed,
+                minimum_target_count=2,
+            )
+            if target_count < 2:
+                click.echo(click.style(
+                    "\n⚠️ Skipped balancing because the smallest family has "
+                    f"only {target_count} sample(s); preserving data for OOD "
+                    "radius calibration.",
+                    fg='yellow',
+                ))
+            else:
+                click.echo(
+                    f"\nBalanced each family to {target_count} samples "
+                    f"(seed={balance_seed}):"
+                )
+                for family, vectors in sorted(training_data.items()):
+                    click.echo(
+                        f"   {family:12s} {original_counts[family]} -> {len(vectors)}"
+                    )
 
         click.echo("\n📊 Training data:")
         for fam, vecs in sorted(training_data.items()):
