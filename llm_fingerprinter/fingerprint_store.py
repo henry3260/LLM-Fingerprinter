@@ -1,3 +1,4 @@
+import base64
 import json
 import logging
 from pathlib import Path
@@ -26,6 +27,11 @@ class FingerprintStore:
             return int(value)
         elif isinstance(value, np.bool_):
             return bool(value)
+        elif isinstance(value, bytes):
+            return {
+                "encoding": "base64",
+                "data": base64.b64encode(value).decode("ascii"),
+            }
         elif isinstance(value, dict):
             return {k: self._serialize_value(v) for k, v in value.items()}
         elif isinstance(value, (list, tuple)):
@@ -55,8 +61,9 @@ class FingerprintStore:
         filepath = self.basedir / filename
 
         try:
+            serialized = json.dumps(data, indent=2, ensure_ascii=False)
             with open(filepath, 'w', encoding='utf-8') as f:
-                json.dump(data, f, indent=2, ensure_ascii=False)
+                f.write(serialized)
             logger.info(f"Saved fingerprint to {filepath}")
             return filepath
         except Exception as e:

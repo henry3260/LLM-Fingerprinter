@@ -19,6 +19,7 @@ def test_save_fingerprint_persists_response_metadata(tmp_path):
                     "provider": "test-provider",
                     "model": "model-a",
                     "finish_reason": "stop",
+                    "raw": {"thought_signature": b"\x00\xff"},
                     "usage": {
                         "input_tokens": np.int64(3),
                         "output_tokens": np.int64(4),
@@ -44,6 +45,12 @@ def test_save_fingerprint_persists_response_metadata(tmp_path):
                 "provider": "test-provider",
                 "model": "model-a",
                 "finish_reason": "stop",
+                "raw": {
+                    "thought_signature": {
+                        "encoding": "base64",
+                        "data": "AP8=",
+                    }
+                },
                 "usage": {
                     "input_tokens": 3,
                     "output_tokens": 4,
