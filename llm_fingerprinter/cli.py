@@ -1075,8 +1075,8 @@ def fingerprint(ctx, backend, endpoint, api_key, request_file, model, repeats, o
 @cli.command('build-templates')
 @click.option('--ood-ratio', default=0.80, type=float, show_default=True,
               help='OOD ratio threshold (lower = stricter OOD detection).')
-@click.option('--balance/--no-balance', default=True, show_default=True,
-              help='Downsample each family to the same number of fingerprints.')
+@click.option('--balance/--no-balance', default=False, show_default=True,
+              help='Downsample each family before building templates.')
 @click.option('--balance-seed', default=42, type=int, show_default=True,
               help='Random seed used for reproducible family balancing.')
 @click.pass_context
@@ -1089,6 +1089,7 @@ def build_templates(ctx, ood_ratio, balance, balance_seed):
     \b
     Examples:
       build-templates
+      build-templates --balance
       build-templates --ood-ratio 0.75
     """
     print_header()
