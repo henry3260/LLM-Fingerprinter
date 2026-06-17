@@ -85,7 +85,12 @@ if _bundled_classifier.exists() and not _user_classifier.exists():
     shutil.copy2(_bundled_classifier, _user_classifier)
 
 # Feature extraction
-EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+ENGLISH_EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+MULTILINGUAL_EMBEDDING_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
+EMBEDDING_MODEL = os.environ.get(
+    "LLM_FINGERPRINTER_EMBEDDING_MODEL",
+    MULTILINGUAL_EMBEDDING_MODEL,
+)
 EMBEDDING_DIM = 384 
 
 LINGUISTIC_DIM = 12
@@ -109,6 +114,7 @@ OOD_CONFIDENCE_THRESHOLD = 0.3
 OOD_DISAGREEMENT_THRESHOLD = 0.15
 
 # Prompt suite
+PROMPT_LANGUAGE = os.environ.get("LLM_FINGERPRINTER_PROMPT_LANGUAGE", "zh").strip().lower()
 PROMPT_REPEATS = 1
 TEMPERATURE = 0.7
 MAX_TOKENS = 512

@@ -892,8 +892,9 @@ def info():
     
     click.echo("⚙️  Config:")
     click.echo(f"  Fingerprints: {config.FINGERPRINTS_DIR}")
+    click.echo(f"  Prompts:      {config.PROMPT_LANGUAGE}")
     click.echo(f"  Embedding:    {config.EMBEDDING_MODEL} ({config.EMBEDDING_DIM}d)")
-    click.echo(f"  Per-prompt:   {config.PER_PROMPT_FEATURE_DIM}d (384 + 12 + 6)")
+    click.echo(f"  Per-prompt:   {config.PER_PROMPT_FEATURE_DIM}d ({config.EMBEDDING_DIM} + 12 + 6)")
     click.echo(f"  Fingerprint:  {config.RAW_FINGERPRINT_DIM}d ({config.NUM_PROMPT_LAYERS} layers x {config.PER_PROMPT_FEATURE_DIM})")
     click.echo(f"  Rebalanced:   {config.EMBEDDING_PCA_DIM}d embeddings per layer")
 

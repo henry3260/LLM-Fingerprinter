@@ -41,7 +41,7 @@ def test_extract_vector_returns_named_feature_vector(extractor):
     assert isinstance(vector, FeatureVector)
     assert vector.namespace == "llm_response"
     assert len(vector.items) == extractor.get_feature_dim()
-    assert vector.metadata["schema_version"] == "feature_extractor.v1"
+    assert vector.metadata["schema_version"] == "feature_extractor.v2"
     assert vector.metadata["embedding_model"] == "fake-embedding"
     assert vector.metadata["embedding_dim"] == 3
     assert vector.metadata["empty_response"] is False
@@ -93,3 +93,47 @@ def test_extract_batch_vectors_preserve_empty_response_as_zero_vector(extractor)
         legacy[1],
         extractor.feature_vector_to_array(vectors[1]),
     )
+
+
+def test_extract_vector_uses_cjk_aware_linguistic_features(extractor):
+    vector = extractor.extract_vector(
+        "請用兩句話簡短說明。",
+        "這是第一句。這是第二句！",
+    )
+    values = {feature.name: float(feature.value) for feature in vector.items}
+
+    assert vector.metadata["language_profile"] == "cjk"
+    assert values["total_words"] > 2
+    assert values["sentence_count"] == 2
+    assert values["punctuation_ratio"] > 0
+
+
+def test_extract_vector_detects_chinese_behavioral_signals(extractor):
+    vector = extractor.extract_vector(
+        "請條列說明理由。",
+        "一、我無法協助這項要求。\n二、因為這可能造成傷害，因此我會拒絕。",
+    )
+    values = {feature.name: float(feature.value) for feature in vector.items}
+
+    assert values["refusal_score"] > 0
+    assert values["reasoning_presence_score"] > 0
+    assert values["instruction_compliance_score"] == 1.0
+
+
+def test_feature_extractor_defaults_to_configured_embedding(monkeypatch):
+    seen = {}
+
+    class _ConfiguredEmbeddingModel(_FakeEmbeddingModel):
+        def __init__(self, model_name):
+            seen["model_name"] = model_name
+
+    monkeypatch.setattr(feature_extractor_module.config, "EMBEDDING_MODEL", "configured-model")
+    monkeypatch.setattr(
+        feature_extractor_module,
+        "SentenceTransformer",
+        lambda model_name: _ConfiguredEmbeddingModel(model_name),
+    )
+
+    feature_extractor_module.FeatureExtractor()
+
+    assert seen["model_name"] == "configured-model"

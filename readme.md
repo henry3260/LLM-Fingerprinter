@@ -181,6 +181,8 @@ Recommended minimum: 3 simulations for a reliable mean template.
 
 | Variable | Backend | Description |
 |----------|---------|-------------|
+| `LLM_FINGERPRINTER_PROMPT_LANGUAGE` | all | Prompt suite language (`zh` by default on this branch, or `en`) |
+| `LLM_FINGERPRINTER_EMBEDDING_MODEL` | all | SentenceTransformer model used for fingerprint embeddings |
 | `OLLAMA_CLOUD_API_KEY` | ollama-cloud | Ollama Cloud API key |
 | `OPENAI_API_KEY` | openai | OpenAI API key |
 | `GEMINI_API_KEY` | gemini | Gemini API key |
@@ -189,6 +191,37 @@ Recommended minimum: 3 simulations for a reliable mean template.
 | `ANTHROPIC_API_KEY` | claude | Anthropic Claude API key |
 | `LOG_LEVEL` | all | Logging level (`DEBUG`, `INFO`, `WARNING`) |
 | `LLM_FINGERPRINTER_DATA` | all | Override data directory (fingerprints, model, logs) |
+
+## Chinese Localization
+
+This branch defaults to a Chinese fingerprinting flow:
+
+- Prompt suite language: `zh`
+- Embedding model: `paraphrase-multilingual-MiniLM-L12-v2`
+- Tokenization: `jieba` for Chinese responses, with regex fallback
+- Linguistic features: Chinese punctuation and list markers such as `，。！？；：、`, `一、`, and `1、`
+- Behavioral features: Chinese refusal, reasoning, formality, and instruction-following keywords
+
+To switch back to the English prompt suite or override the embedding model:
+
+```bash
+export LLM_FINGERPRINTER_PROMPT_LANGUAGE=en
+export LLM_FINGERPRINTER_EMBEDDING_MODEL=all-MiniLM-L6-v2
+```
+
+Changing the prompt language or embedding model changes the fingerprint
+distribution. Regenerate fingerprints and rebuild all model artifacts before
+identifying models:
+
+```bash
+llm-fingerprinter simulate -b openai --model gpt-4o-mini --family gpt --num-sims 10
+llm-fingerprinter train
+llm-fingerprinter build-templates
+llm-fingerprinter build-model-templates
+```
+
+Do not mix old English fingerprints with new Chinese fingerprints unless the
+goal is to train a bilingual classifier intentionally.
 
 
 ---
