@@ -145,6 +145,10 @@ Compute per-family mean vectors from training fingerprints for the open-set temp
 llm-fingerprinter build-templates
 ```
 
+By default, family templates use all available fingerprints. Use
+`llm-fingerprinter build-templates --balance` to downsample each family to the
+same number of fingerprints before building templates.
+
 The template classifier uses cosine distance to nearest mean — it doesn't require retraining when adding new families.
 
 ---
